@@ -20,12 +20,15 @@ func (g *Game) Id() int64 {
 func (g *Game) GameState() *game.GameState {
 	return g.gs
 }
+
 func (g *Game) WhitePlayer() int64 {
 	return g.whitePlayer
 }
+
 func (g *Game) BlackPlayer() int64 {
 	return g.blackPlayer
 }
+
 func (g *Game) SetWhitePlayer(whitePlayer int64) error {
 	if g.whitePlayer != 0 {
 		return fmt.Errorf("white player already defined")
@@ -33,6 +36,7 @@ func (g *Game) SetWhitePlayer(whitePlayer int64) error {
 	g.whitePlayer = whitePlayer
 	return nil
 }
+
 func (g *Game) SetBlackPlayer(blackPlayer int64) error {
 	if g.blackPlayer != 0 {
 		return fmt.Errorf("black player already defined")
@@ -40,6 +44,7 @@ func (g *Game) SetBlackPlayer(blackPlayer int64) error {
 	g.blackPlayer = blackPlayer
 	return nil
 }
+
 func (g *Game) UpdateGame(playerId int64, uciMove string) error {
 	if (g.gs.GetPlayerTurn() == game.BLACK_PLAYER && playerId != g.blackPlayer) ||
 		(g.gs.GetPlayerTurn() == game.WHITE_PLAYER && playerId != g.whitePlayer) {
@@ -47,6 +52,7 @@ func (g *Game) UpdateGame(playerId int64, uciMove string) error {
 	}
 	return g.gs.UpdateGameState(uciMove)
 }
+
 func NewGame(node *snowflake.Node) *Game {
 	return &Game{
 		id:          node.Generate().Int64(),
@@ -56,7 +62,16 @@ func NewGame(node *snowflake.Node) *Game {
 	}
 }
 
+func RecoverGameState(id int64, whitePlayer int64, blackPlayer int64, gameState *game.GameState) *Game {
+	return &Game{
+		id:          id,
+		whitePlayer: whitePlayer,
+		blackPlayer: blackPlayer,
+		gs:          gameState,
+	}
+}
+
 type GameRepository interface {
-	GetGame(id int64) *Game
+	GetGame(id int64) (*Game, error)
 	SaveGame(game *Game) error
 }
