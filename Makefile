@@ -1,6 +1,7 @@
 build:
 	@rm -rf ./dist
 	@mkdir ./dist
+	cp .env.dev ./dist/.env
 	go build -o ./dist/chezz
 	@chmod +x ./dist/chezz
 run:
