@@ -38,6 +38,10 @@ func NewRedisGameRepository(host string, port int, opTimeout int) models.GameRep
 	}
 }
 
+// GetGame retrieves a game from the RedisGameRepository.
+//
+// It takes an integer ID as a parameter and returns a pointer to a models.Game
+// and an error.
 func (rgr *RedisGameRepository) GetGame(id int64) (*models.Game, error) {
 	cmdResult := rgr.redisConn.Get(rgr.ctx, rgr.getGameKey(id))
 	result, err := cmdResult.Bytes()
@@ -65,6 +69,10 @@ func (rgr *RedisGameRepository) getGameKey(id int64) string {
 	return "game.{" + base64.RawStdEncoding.EncodeToString(rawId[:]) + "}"
 }
 
+// serializeGame serializes a game object into a byte array.
+//
+// It takes a pointer to a models.Game object as a parameter.
+// It returns a byte array and an error.
 func (rgr *RedisGameRepository) serializeGame(g *models.Game) ([]byte, error) {
 	if g == nil {
 		return nil, fmt.Errorf("game is nil")
@@ -81,6 +89,10 @@ func (rgr *RedisGameRepository) serializeGame(g *models.Game) ([]byte, error) {
 	})
 }
 
+// recoverGame recovers a game from serialized data.
+//
+// data: The serialized data of the game.
+// Returns the recovered game and an error if there was any.
 func (rgr *RedisGameRepository) recoverGame(data []byte) (*models.Game, error) {
 	unmarshaledData := &gameMarshalStruct{}
 	err := json.Unmarshal(data, unmarshaledData)

@@ -89,42 +89,49 @@ type Test struct {
 	Value string
 }
 
+func runConsole() {
+	gs := game.NewGameState()
+	var strMove string
+	var lastErr error
+	for {
+		clearConsole()
+		if lastErr != nil {
+			fmt.Print(color.FgRed.Render(fmt.Sprintf("Last error: %s\n", lastErr)))
+		}
+
+		lastErr = nil
+		paintGame(gs)
+		player := "WHITE"
+		if gs.GetPlayerTurn() == game.BLACK_PLAYER {
+			player = "BLACK"
+		}
+		if gs.GetCheckedPlayer() != game.UNKNOWN_PLAYER {
+			fmt.Printf("Player %v in check\n", player)
+		}
+		if !gs.InCheckMate() {
+			fmt.Printf("Next move(%s): ", player)
+			fmt.Scanln(&strMove)
+		} else {
+			fmt.Println("Check mate")
+			os.Exit(0)
+		}
+
+		if strMove == "exit" {
+			break
+		}
+		errState := gs.UpdateGameState(strMove)
+		if errState != nil {
+			lastErr = errState
+		}
+	}
+}
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "console" {
+		runConsole()
+		return
+	}
 	router := gin.Default()
 	handlers.SetupRoutes(router)
-	router.Run(":6969")
-	/*
-		gs := game.NewGameState()
-		var strMove string
-		var lastErr error
-		for {
-			if lastErr != nil {
-				fmt.Print(color.FgRed.Render(fmt.Sprintf("Last error: %s\n", lastErr)))
-			}
+	router.Run(":8888")
 
-			lastErr = nil
-			paintGame(gs)
-			player := "WHITE"
-			if gs.GetPlayerTurn() == game.BLACK_PLAYER {
-				player = "BLACK"
-			}
-			if gs.GetCheckedPlayer() != game.UNKNOWN_PLAYER {
-				fmt.Printf("Player %v in check\n", player)
-			}
-			if !gs.InCheckMate() {
-				fmt.Printf("Next move(%s): ", player)
-				fmt.Scanln(&strMove)
-			} else {
-				fmt.Println("Check mate")
-				os.Exit(0)
-			}
-
-			if strMove == "exit" {
-				break
-			}
-			errState := gs.UpdateGameState(strMove)
-			if errState != nil {
-				lastErr = errState
-			}
-		}*/
 }

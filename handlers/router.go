@@ -8,6 +8,7 @@ import (
 	"github.com/bwmarrin/snowflake"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
+	"github.com/kjk/betterguid"
 	"github.com/sgatu/chezz-back/infrastructure/repositories"
 )
 
@@ -26,6 +27,7 @@ func getEnvDefaultInt(key string, defaultValue int) int {
 	}
 	return parsed
 }
+
 func SetupRoutes(engine *gin.Engine) error {
 	err := godotenv.Load()
 	if err != nil {
@@ -44,13 +46,19 @@ func SetupRoutes(engine *gin.Engine) error {
 		gameRepository: gameRedisRepo,
 		node:           node,
 	}
-	gameHandler := &GameHandler{gameRepository: gameRedisRepo}
+	gameHandler := &GameHandler{gameRepository: gameRedisRepo, node: node}
+	engine.Use(func(ctx *gin.Context) {
+		session_id, err := ctx.Cookie("session_id")
+		if err == nil {
+			ctx.SetCookie("session_id", session_id, 3600*24*30, "/", ctx.Request.Host, false, true)
+			return
+		}
+		session_id = betterguid.New()
+		ctx.SetCookie("session_id", session_id, 3600*24*30, "/", ctx.Request.Host, false, true)
+	})
 	engine.GET("/health", healthHandler.healthHandler)
 	engine.GET("/test", healthHandler.testHandler)
 	engine.GET("/game/:id", gameHandler.getGame)
 	engine.POST("/game", gameHandler.createNewGame)
 	return nil
-	/*engine.GET("/test", func(ctx *gin.Context, tSvc *services.TestService) {
-
-	})*/
 }

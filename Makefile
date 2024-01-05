@@ -8,6 +8,8 @@ run:
 	@cd dist; ./chezz
 run-release:
 	@cd dist; GIN_MODE=release ./chezz
+run-console:
+	@cd dist; ./chezz console
 test:
 	go clean -testcache
 	go test ./...

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"net/http"
 	"strconv"
 
 	"github.com/bwmarrin/snowflake"
@@ -32,4 +33,8 @@ func (gh *GameHandler) getGame(c *gin.Context) {
 func (gh *GameHandler) createNewGame(c *gin.Context) {
 	game := models.NewGame(gh.node)
 	gh.gameRepository.SaveGame(game)
+	c.JSON(http.StatusCreated, struct {
+		Message string `json:"message"`
+		GameId  int64  `json:"game_id"`
+	}{Message: "Game created", GameId: game.Id()})
 }
