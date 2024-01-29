@@ -23,17 +23,12 @@ type gameMarshalStruct struct {
 
 type RedisGameRepository struct {
 	redisConn *redis.Client
-	opTimeout int
 	ctx       context.Context
 }
 
-func NewRedisGameRepository(host string, port int, opTimeout int) models.GameRepository {
+func NewRedisGameRepository(redisClient *redis.Client) models.GameRepository {
 	return &RedisGameRepository{
-		redisConn: redis.NewClient(&redis.Options{
-			Addr:     fmt.Sprintf("%s:%d", host, port),
-			Password: "",
-		}),
-		opTimeout: opTimeout,
+		redisConn: redisClient,
 		ctx:       context.Background(),
 	}
 }

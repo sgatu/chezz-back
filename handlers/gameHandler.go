@@ -23,7 +23,7 @@ func (gh *GameHandler) getGame(c *gin.Context) {
 		return
 	}
 	game, err := gh.gameRepository.GetGame(id)
-	if err != nil || game == nil {
+	if err != nil || game == nil || (game.BlackPlayer() != int64(c.GetUint64("session_id")) && game.WhitePlayer() != int64(c.GetUint64("session_id"))) {
 		handlers_messages.PushGameNotFoundMessage(c, idParam)
 		return
 	}
