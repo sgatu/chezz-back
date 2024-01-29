@@ -22,16 +22,41 @@ func (gh *GameHandler) getGame(c *gin.Context) {
 		handlers_messages.PushGameNotFoundMessage(c, idParam)
 		return
 	}
+	session, err := GetCurrentSession(c)
+	if err != nil {
+		handlers_messages.PushGameNotFoundMessage(c, idParam)
+	}
+	userId := session.UserId
 	game, err := gh.gameRepository.GetGame(id)
-	if err != nil || game == nil || (game.BlackPlayer() != int64(c.GetUint64("session_id")) && game.WhitePlayer() != int64(c.GetUint64("session_id"))) {
+	if err != nil || game == nil ||
+		(game.BlackPlayer() != userId && game.WhitePlayer() != userId) {
+
 		handlers_messages.PushGameNotFoundMessage(c, idParam)
 		return
 	}
-	c.JSON(200, game)
+	gameStatus, err := handlers_messages.GameStatusFromGameModel(game)
+	if err != nil {
+		handlers_messages.PushGameNotFoundMessage(c, idParam)
+		return
+	}
+	c.JSON(200, gameStatus)
 }
 
 func (gh *GameHandler) createNewGame(c *gin.Context) {
-	game := models.NewGame(gh.node)
+	session, err := GetCurrentSession(c)
+
+	//this should not happen
+	if err != nil {
+		c.JSON(401, handlers_messages.NewUnknownSessionError())
+		return
+	}
+
+	isBlackPlayer := false
+	if c.Query("is_black") == "true" {
+		isBlackPlayer = true
+	}
+	game := models.NewGame(gh.node, session.UserId, isBlackPlayer)
+
 	gh.gameRepository.SaveGame(game)
 	c.JSON(http.StatusCreated, struct {
 		Message string `json:"message"`

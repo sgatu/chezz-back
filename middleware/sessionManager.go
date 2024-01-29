@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"fmt"
 	"net"
 
 	"github.com/bwmarrin/snowflake"
@@ -32,21 +33,37 @@ func (sm *SessionManager) RemoveSessionData(session *models.SessionStore, key st
 	sm.SessionRepository.SaveSession(session)
 }
 
-// func manage session to use as gin middleware
-func (sm *SessionManager) ManageSession() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		sessionID, err := c.Cookie("session_id")
-		var session *models.SessionStore
+func getSession(c *gin.Context, sm *SessionManager) *models.SessionStore {
+	var session *models.SessionStore
+	sessionID, err := c.Cookie("session_id")
+	if err != nil {
+		qSessionId := c.Query("session_id")
+		if qSessionId != "" {
+			fmt.Println("DEBUG: Session loaded from query param", qSessionId)
+			sessionID = qSessionId
+		}
+	} else {
+		fmt.Println("DEBUG: SessionId loaded from cookie", sessionID)
+	}
+
+	if sessionID == "" {
+		sessionID = betterguid.New()
+		session = &models.SessionStore{SessionId: sessionID, UserId: sm.Node.Generate().Int64(), Data: map[string]string{}}
+	} else {
+		session, err = sm.SessionRepository.GetSession(sessionID)
 		if err != nil {
 			sessionID = betterguid.New()
 			session = &models.SessionStore{SessionId: sessionID, UserId: sm.Node.Generate().Int64(), Data: map[string]string{}}
-		} else {
-			session, err = sm.SessionRepository.GetSession(sessionID)
-			if err != nil {
-				sessionID = betterguid.New()
-				session = &models.SessionStore{SessionId: sessionID, UserId: sm.Node.Generate().Int64(), Data: map[string]string{}}
-			}
 		}
+	}
+	return session
+}
+
+// func manage session to use as gin middleware
+func (sm *SessionManager) ManageSession() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		session := getSession(c, sm)
+		sessionID := session.SessionId
 		host, _, _ := net.SplitHostPort(c.Request.Host)
 		c.SetCookie("session_id", sessionID, 3600*24*30, "/", host, false, true)
 		c.Set("session", session)

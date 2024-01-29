@@ -357,6 +357,7 @@ func (gs *GameState) applyAction(action *Action, allowedMovePositions []int) err
 	gs.table[action.posStart] = nil
 	return nil
 }
+
 func (gs *GameState) checkIfCheck() (bool, bool) {
 	var whiteKingPos int = -1
 	var blackKingPos int = -1
@@ -437,14 +438,16 @@ func FromSerialized(serializedData []byte) (*GameState, error) {
 		if b > 12 {
 			player = BLACK_PLAYER
 			bCopy -= 12
+		}
+
+		if bCopy > 6 {
+			hasBeenMoved = true
+			bCopy -= 6
 			if bCopy > 6 {
-				hasBeenMoved = true
-				bCopy -= 6
-				if bCopy > 6 {
-					return nil
-				}
+				return nil
 			}
 		}
+
 		return &Piece{
 			PieceType:    PIECE_TYPE(bCopy),
 			Player:       player,
@@ -500,6 +503,7 @@ func FromSerialized(serializedData []byte) (*GameState, error) {
 		moves:      moves,
 	}, nil
 }
+
 func (gs *GameState) Serialize() ([]byte, error) {
 	pieceToByte := func(p *Piece) byte {
 		if p == nil {

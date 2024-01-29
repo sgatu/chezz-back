@@ -24,7 +24,5 @@ func (hh *HealthHandler) healthHandler(c *gin.Context) {
 
 }
 func (hh *HealthHandler) testHandler(c *gin.Context) {
-	game := models.NewGame(hh.node)
-	hh.gameRepository.SaveGame(game)
 	c.String(200, "hola")
 }

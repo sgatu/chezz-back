@@ -53,12 +53,19 @@ func (g *Game) UpdateGame(playerId int64, uciMove string) error {
 	return g.gs.UpdateGameState(uciMove)
 }
 
-func NewGame(node *snowflake.Node) *Game {
+func NewGame(node *snowflake.Node, userId int64, isBlackPlayer bool) *Game {
+	whitePlayer := int64(0)
+	blackPlayer := int64(0)
+	if isBlackPlayer {
+		blackPlayer = userId
+	} else {
+		whitePlayer = userId
+	}
 	return &Game{
 		id:          node.Generate().Int64(),
 		gs:          game.NewGameState(),
-		whitePlayer: 0,
-		blackPlayer: 0,
+		whitePlayer: whitePlayer,
+		blackPlayer: blackPlayer,
 	}
 }
 

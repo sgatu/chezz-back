@@ -35,6 +35,7 @@ func SetupMiddlewares(engine *gin.Engine, node *snowflake.Node, redisClient *red
 	sessionManager := middleware.SessionManager{SessionRepository: sessionRedisRepo, Node: node}
 	engine.Use(sessionManager.ManageSession())
 }
+
 func GetContextValue[T any](c *gin.Context, key string) (T, error) {
 	result, ok := c.Get(key)
 	if !ok {
@@ -46,6 +47,7 @@ func GetContextValue[T any](c *gin.Context, key string) (T, error) {
 	}
 	return casted, nil
 }
+
 func RefreshSession(c *gin.Context) error {
 	session, err := GetContextValue[*models.SessionStore](c, "session")
 	if err != nil {
@@ -63,6 +65,7 @@ func RefreshSession(c *gin.Context) error {
 	c.Set("session", session_updated)
 	return nil
 }
+
 func GetCurrentSession(c *gin.Context) (*models.SessionStore, error) {
 	session, err := GetContextValue[*models.SessionStore](c, "session")
 	if err != nil {
@@ -70,6 +73,7 @@ func GetCurrentSession(c *gin.Context) (*models.SessionStore, error) {
 	}
 	return session, nil
 }
+
 func SetupRoutes(engine *gin.Engine) error {
 	if err := godotenv.Load(); err != nil {
 		return err
