@@ -5,10 +5,15 @@ import (
 	"os"
 	"os/exec"
 
+	"github.com/bwmarrin/snowflake"
 	"github.com/gin-gonic/gin"
 	"github.com/gookit/color"
+	"github.com/redis/go-redis/v9"
 	"github.com/sgatu/chezz-back/game"
 	"github.com/sgatu/chezz-back/handlers"
+	"github.com/sgatu/chezz-back/infrastructure/repositories"
+	"github.com/sgatu/chezz-back/models"
+	"github.com/sgatu/chezz-back/services"
 )
 
 func pieceToStrL(p game.PIECE_TYPE) string {
@@ -90,9 +95,45 @@ type Test struct {
 }
 
 func runConsole() {
-	gs := game.NewGameState()
-	var strMove string
-	var lastErr error
+	gameRepository := repositories.NewRedisGameRepository(redis.NewClient(&redis.Options{
+		Addr: fmt.Sprintf("%s:%d", os.Getenv("REDIS_HOST"), os.Getenv("REDIS_PORT")),
+	}))
+	snowflakeNode, _ := snowflake.NewNode(1)
+	gameManager := services.NewGameManagerService(gameRepository)
+	thisGame := models.NewGame(snowflakeNode, 1, false)
+	gameRepository.SaveGame(thisGame)
+	liveGame, err := gameManager.GetLiveGameState(thisGame.Id())
+	if err != nil {
+		panic(err)
+	}
+	updatesCh := make(chan string)
+	liveGame.AddObserver(updatesCh)
+	defer liveGame.RemoveObserver(updatesCh)
+	liveGame.StartAwaitingMoves()
+
+	go func() {
+		clearConsole()
+		paintGame(thisGame.GameState())
+		for {
+			<-updatesCh
+			clearConsole()
+			paintGame(thisGame.GameState())
+			player := "WHITE"
+			var strMove string
+			if thisGame.GameState().GetPlayerTurn() == game.BLACK_PLAYER {
+				player = "BLACK"
+			}
+			if thisGame.GameState().GetCheckedPlayer() != game.UNKNOWN_PLAYER {
+				fmt.Printf("Player %v in check\n", player)
+			}
+			if !thisGame.GameState().InCheckMate() {
+				fmt.Printf("Next move(%s): ", player)
+				fmt.Scanln(&strMove)
+				liveGame.ExecuteMove(strMove)
+			}
+		}
+	}()
+
 	for {
 		clearConsole()
 		if lastErr != nil {
@@ -100,15 +141,15 @@ func runConsole() {
 		}
 
 		lastErr = nil
-		paintGame(gs)
+
 		player := "WHITE"
-		if gs.GetPlayerTurn() == game.BLACK_PLAYER {
+		if thisGame.GameState().GetPlayerTurn() == game.BLACK_PLAYER {
 			player = "BLACK"
 		}
-		if gs.GetCheckedPlayer() != game.UNKNOWN_PLAYER {
+		if thisGame.GameState().GetCheckedPlayer() != game.UNKNOWN_PLAYER {
 			fmt.Printf("Player %v in check\n", player)
 		}
-		if !gs.InCheckMate() {
+		if !thisGame.GameState().InCheckMate() {
 			fmt.Printf("Next move(%s): ", player)
 			fmt.Scanln(&strMove)
 		} else {
@@ -119,7 +160,7 @@ func runConsole() {
 		if strMove == "exit" {
 			break
 		}
-		errState := gs.UpdateGameState(strMove)
+		errState := thisGame.GameState().UpdateGameState(strMove)
 		if errState != nil {
 			lastErr = errState
 		}
