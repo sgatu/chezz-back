@@ -21,6 +21,7 @@ func getEnvDefault(key string, defaultValue string) string {
 	}
 	return result
 }
+
 func getEnvDefaultInt(key string, defaultValue int) int {
 	result := getEnvDefault(key, fmt.Sprintf("%d", defaultValue))
 	parsed, err := strconv.Atoi(result)
@@ -53,7 +54,7 @@ func RefreshSession(c *gin.Context) error {
 	if err != nil {
 		return err
 	}
-	//refresh the session
+	// refresh the session
 	session_mgr, err := GetContextValue[models.SessionRepository](c, "session_mgr")
 	if err != nil {
 		return err
@@ -101,12 +102,14 @@ func SetupRoutes(engine *gin.Engine) error {
 		gameRepository: gameRedisRepo,
 		node:           node,
 	}
-
+	playHandler := &PlayHandler{
+		gameRepository: gameRedisRepo,
+	}
 	// routes
 	engine.GET("/health", healthHandler.healthHandler)
 	engine.GET("/test", healthHandler.testHandler)
 	engine.GET("/game/:id", gameHandler.getGame)
 	engine.POST("/game", gameHandler.createNewGame)
-
+	engine.GET("/play/:id", playHandler.Play)
 	return nil
 }

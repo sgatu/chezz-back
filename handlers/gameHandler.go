@@ -44,17 +44,13 @@ func (gh *GameHandler) getGame(c *gin.Context) {
 
 func (gh *GameHandler) createNewGame(c *gin.Context) {
 	session, err := GetCurrentSession(c)
-
-	//this should not happen
+	// this should not happen
 	if err != nil {
 		c.JSON(401, handlers_messages.NewUnknownSessionError())
 		return
 	}
 
-	isBlackPlayer := false
-	if c.Query("is_black") == "true" {
-		isBlackPlayer = true
-	}
+	isBlackPlayer := c.Query("is_black") == "true"
 	game := models.NewGame(gh.node, session.UserId, isBlackPlayer)
 
 	gh.gameRepository.SaveGame(game)

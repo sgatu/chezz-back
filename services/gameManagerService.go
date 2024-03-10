@@ -12,6 +12,11 @@ type MoveMessage struct {
 	ErrorsChannel chan error
 }
 
+type Observer interface {
+	UpdatesChannel() chan string
+	ErrorsChannel() chan error
+}
+
 type GameManagerService struct {
 	liveGameStates map[int64]*LiveGameState
 	gameRepository models.GameRepository
@@ -76,18 +81,20 @@ func (lgs *LiveGameState) RemoveObserver(observerCh chan string) {
 		lgs.gameManager.RemoveLiveGameState(lgs.game.Id())
 	}
 }
+
 func (lgs *LiveGameState) ExecuteMove(move string) {
-	lgs.chCommandsChannel <- move
+	// lgs.chCommandsChannel <- move
 }
+
 func (lgs *LiveGameState) StartAwaitingMoves() {
 	go func() {
-		for move := range lgs.chCommandsChannel {
-			err := lgs.game.GameState().UpdateGameState(move)
-			if err == nil {
-				lgs.NotifyMoveObservers(move)
-			} else {
+		for range lgs.chCommandsChannel {
+			//			err := lgs.game.GameState().UpdateGameState(move)
+			//		if err == nil {
+			//			lgs.NotifyMoveObservers(move)
+			//	} else {
 
-			}
+			//}
 		}
 	}()
 }
