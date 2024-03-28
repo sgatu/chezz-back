@@ -18,7 +18,7 @@ type GameHandler struct {
 func (gh *GameHandler) getGame(c *gin.Context) {
 	idParam := c.Param("id")
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
+	if err != nil || id < 1 {
 		handlers_messages.PushGameNotFoundMessage(c, idParam)
 		return
 	}
@@ -49,8 +49,8 @@ func (gh *GameHandler) createNewGame(c *gin.Context) {
 		c.JSON(401, handlers_messages.NewUnknownSessionError())
 		return
 	}
-
-	isBlackPlayer := c.Query("is_black") == "true"
+	isBlackQuery := c.Query("is_black")
+	isBlackPlayer := isBlackQuery == "true" || isBlackQuery == "1" || isBlackQuery == "yes"
 	game := models.NewGame(gh.node, session.UserId, isBlackPlayer)
 
 	gh.gameRepository.SaveGame(game)

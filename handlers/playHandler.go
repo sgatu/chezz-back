@@ -11,10 +11,12 @@ import (
 	"github.com/gobwas/ws/wsutil"
 	handlers_messages "github.com/sgatu/chezz-back/handlers/messages"
 	"github.com/sgatu/chezz-back/models"
+	"github.com/sgatu/chezz-back/services"
 )
 
 type PlayHandler struct {
 	gameRepository models.GameRepository
+	gameManager    *services.GameManagerService
 }
 
 func (ph *PlayHandler) Play(c *gin.Context) {
@@ -24,44 +26,71 @@ func (ph *PlayHandler) Play(c *gin.Context) {
 		handlers_messages.PushGameNotFoundMessage(c, idParam)
 		return
 	}
-	_, err = GetCurrentSession(c)
+	session, err := GetCurrentSession(c)
 	if err != nil {
 		handlers_messages.PushGameNotFoundMessage(c, idParam)
 		return
 	}
-	//	userId := session.UserId
-	_, err = ph.gameRepository.GetGame(id)
+	game, err := ph.gameRepository.GetGame(id)
 	if err != nil {
 		handlers_messages.PushGameNotFoundMessage(c, idParam)
 		return
 	}
-
+	// set secondary player
+	if game.BlackPlayer() != session.UserId && game.WhitePlayer() != session.UserId {
+		if game.BlackPlayer() == 0 {
+			game.SetBlackPlayer(session.UserId)
+		}
+		if game.WhitePlayer() == 0 {
+			game.SetWhitePlayer(session.UserId)
+		}
+		ph.gameRepository.SaveGame(game)
+	}
+	liveGameState, err := ph.gameManager.GetLiveGameState(id)
+	if err != nil {
+		handlers_messages.PushGameNotFoundMessage(c, idParam)
+	}
 	conn, _, _, err := ws.UpgradeHTTP(c.Request, c.Writer)
 	if err != nil {
 		fmt.Println(err)
 		c.JSON(500, struct{ err string }{err: err.Error()})
 		return
 	}
-	go func() {
+
+	go func(playerId int64) {
+		observeChan := make(chan string)
+		liveGameState.AddObserver(observeChan)
 		ticker := time.NewTicker(time.Second * 1)
 		defer ticker.Stop()
 		defer conn.Close()
+		defer liveGameState.RemoveObserver(observeChan)
 		aux := atomic.Uint32{}
-		for range ticker.C {
-			err := wsutil.WriteServerMessage(conn, ws.OpText, []byte("hola"))
-			if err != nil {
-				fmt.Println("Ticked... sending hola")
-				return
-			}
-			conn.SetReadDeadline(time.Now().Add(time.Second * 2))
-			message, err := wsutil.ReadClientMessage(conn, nil)
-			if err == nil {
-				fmt.Println(message)
-			}
-			newVal := aux.Add(1)
-			if newVal == 25 {
-				return
+		for {
+			select {
+			case <-ticker.C:
+				conn.SetReadDeadline(time.Now().Add(time.Millisecond * 500))
+				message, err := wsutil.ReadClientMessage(conn, nil)
+				if err != nil || len(message[len(message)-1].Payload) == 0 {
+					if err == nil && message[len(message)-1].OpCode == ws.OpClose {
+						// client closed the connection
+						return
+					}
+					fmt.Printf("No message received...%+v - %+v\n", err, message)
+					continue
+				}
+				fmt.Println("New message", string(message[len(message)-1].Payload))
+				liveGameState.ExecuteMove(services.MoveMessage{Move: string(message[len(message)-1].Payload), ErrorsChannel: nil, Who: playerId})
+				newVal := aux.Add(1)
+				if newVal == 100 {
+					return
+				}
+			case move := <-observeChan:
+				err := wsutil.WriteServerMessage(conn, ws.OpText, []byte(move))
+				if err == nil {
+					fmt.Println("Got movement, sent to player", move)
+					return
+				}
 			}
 		}
-	}()
+	}(session.UserId)
 }

@@ -12,6 +12,7 @@ import (
 	"github.com/sgatu/chezz-back/infrastructure/repositories"
 	"github.com/sgatu/chezz-back/middleware"
 	"github.com/sgatu/chezz-back/models"
+	"github.com/sgatu/chezz-back/services"
 )
 
 func getEnvDefault(key string, defaultValue string) string {
@@ -104,6 +105,7 @@ func SetupRoutes(engine *gin.Engine) error {
 	}
 	playHandler := &PlayHandler{
 		gameRepository: gameRedisRepo,
+		gameManager:    services.NewGameManagerService(gameRedisRepo),
 	}
 	// routes
 	engine.GET("/health", healthHandler.healthHandler)

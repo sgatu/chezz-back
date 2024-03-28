@@ -2,14 +2,16 @@
 package services
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/sgatu/chezz-back/models"
 )
 
 type MoveMessage struct {
-	Move          string
 	ErrorsChannel chan error
+	Move          string
+	Who           int64
 }
 
 type Observer interface {
@@ -42,12 +44,14 @@ func (s *GameManagerService) GetLiveGameState(gameId int64) (*LiveGameState, err
 			game:              game,
 			chCommandsChannel: make(chan MoveMessage, 10),
 			observers:         make([]chan string, 0),
+			gameManager:       s,
 		}
+		s.liveGameStates[gameId].startAwaitingMoves()
 	}
 	return s.liveGameStates[gameId], nil
 }
 
-func (s *GameManagerService) RemoveLiveGameState(gameId int64) {
+func (s *GameManagerService) removeLiveGameState(gameId int64) {
 	s.gameStatesLock.Lock()
 	defer s.gameStatesLock.Unlock()
 	delete(s.liveGameStates, gameId)
@@ -56,9 +60,9 @@ func (s *GameManagerService) RemoveLiveGameState(gameId int64) {
 type LiveGameState struct {
 	chCommandsChannel chan MoveMessage
 	game              *models.Game
+	gameManager       *GameManagerService
 	observers         []chan string
 	observersMutex    sync.Mutex
-	gameManager       *GameManagerService
 }
 
 func (lgs *LiveGameState) AddObserver(observerCh chan string) {
@@ -78,28 +82,33 @@ func (lgs *LiveGameState) RemoveObserver(observerCh chan string) {
 	}
 	if len(lgs.observers) == 0 {
 		close(lgs.chCommandsChannel)
-		lgs.gameManager.RemoveLiveGameState(lgs.game.Id())
+		fmt.Printf("before removing the livestate %+v, %+v\n", lgs.gameManager, lgs.game.Id())
+		lgs.gameManager.removeLiveGameState(lgs.game.Id())
 	}
 }
 
-func (lgs *LiveGameState) ExecuteMove(move string) {
-	// lgs.chCommandsChannel <- move
+func (lgs *LiveGameState) ExecuteMove(move MoveMessage) {
+	lgs.chCommandsChannel <- move
 }
 
-func (lgs *LiveGameState) StartAwaitingMoves() {
+func (lgs *LiveGameState) startAwaitingMoves() {
 	go func() {
-		for range lgs.chCommandsChannel {
-			//			err := lgs.game.GameState().UpdateGameState(move)
-			//		if err == nil {
-			//			lgs.NotifyMoveObservers(move)
-			//	} else {
-
-			//}
+		for move := range lgs.chCommandsChannel {
+			fmt.Printf("Received move: %+v\n", move)
+			err := lgs.game.UpdateGame(move.Who, move.Move)
+			if err == nil {
+				lgs.notifyMoveObservers(move.Move)
+			} else {
+				fmt.Println("Could not execute move due to ", err)
+				if move.ErrorsChannel != nil {
+					move.ErrorsChannel <- err
+				}
+			}
 		}
 	}()
 }
 
-func (lgs *LiveGameState) NotifyMoveObservers(move string) {
+func (lgs *LiveGameState) notifyMoveObservers(move string) {
 	lgs.observersMutex.Lock()
 	defer lgs.observersMutex.Unlock()
 	for _, observer := range lgs.observers {
