@@ -31,6 +31,7 @@ func (ph *PlayHandler) Play(c *gin.Context) {
 		handlers_messages.PushGameNotFoundMessage(c, idParam)
 		return
 	}
+	fmt.Printf("session found %+v\n", session)
 	game, err := ph.gameRepository.GetGame(id)
 	if err != nil {
 		handlers_messages.PushGameNotFoundMessage(c, idParam)
@@ -39,9 +40,11 @@ func (ph *PlayHandler) Play(c *gin.Context) {
 	// set secondary player
 	if game.BlackPlayer() != session.UserId && game.WhitePlayer() != session.UserId {
 		if game.BlackPlayer() == 0 {
+			fmt.Printf("Setting black player to %+v\n", session.UserId)
 			game.SetBlackPlayer(session.UserId)
 		}
 		if game.WhitePlayer() == 0 {
+			fmt.Printf("Setting white player to %+v\n", session.UserId)
 			game.SetWhitePlayer(session.UserId)
 		}
 		ph.gameRepository.SaveGame(game)
@@ -72,6 +75,7 @@ func (ph *PlayHandler) Play(c *gin.Context) {
 				message, err := wsutil.ReadClientMessage(conn, nil)
 				if err != nil || len(message[len(message)-1].Payload) == 0 {
 					if err == nil && message[len(message)-1].OpCode == ws.OpClose {
+						fmt.Printf("client closed connection\n")
 						// client closed the connection
 						return
 					}
@@ -88,7 +92,7 @@ func (ph *PlayHandler) Play(c *gin.Context) {
 				err := wsutil.WriteServerMessage(conn, ws.OpText, []byte(move))
 				if err == nil {
 					fmt.Println("Got movement, sent to player", move)
-					return
+					//					return
 				}
 			}
 		}

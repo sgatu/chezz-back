@@ -65,7 +65,7 @@ func (sm *SessionManager) ManageSession() gin.HandlerFunc {
 		session := getSession(c, sm)
 		sessionID := session.SessionId
 		host, _, _ := net.SplitHostPort(c.Request.Host)
-		c.SetCookie("session_id", sessionID, 3600*24*30, "/", host, false, true)
+		c.SetCookie("session_id", sessionID, 3600*24*30, "/", host, false, false)
 		c.Set("session", session)
 		c.Set("session_mgr", sm)
 		sm.SessionRepository.SaveSession(session)

@@ -22,14 +22,14 @@ func (gh *GameHandler) getGame(c *gin.Context) {
 		handlers_messages.PushGameNotFoundMessage(c, idParam)
 		return
 	}
-	session, err := GetCurrentSession(c)
+	_, err = GetCurrentSession(c)
 	if err != nil {
 		handlers_messages.PushGameNotFoundMessage(c, idParam)
 	}
-	userId := session.UserId
+	// userId := session.UserId
 	game, err := gh.gameRepository.GetGame(id)
-	if err != nil || game == nil ||
-		(game.BlackPlayer() != userId && game.WhitePlayer() != userId) {
+	if err != nil || game == nil { //||
+		// (game.BlackPlayer() != userId && game.WhitePlayer() != userId) {
 
 		handlers_messages.PushGameNotFoundMessage(c, idParam)
 		return
@@ -52,7 +52,6 @@ func (gh *GameHandler) createNewGame(c *gin.Context) {
 	isBlackQuery := c.Query("is_black")
 	isBlackPlayer := isBlackQuery == "true" || isBlackQuery == "1" || isBlackQuery == "yes"
 	game := models.NewGame(gh.node, session.UserId, isBlackPlayer)
-
 	gh.gameRepository.SaveGame(game)
 	c.JSON(http.StatusCreated, struct {
 		Message string `json:"message"`

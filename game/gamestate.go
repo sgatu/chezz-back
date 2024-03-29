@@ -57,21 +57,21 @@ const (
 )
 
 type GameState struct {
-	playerTurn     PLAYER
 	table          [64]*Piece
+	moves          []string
 	outTable       []Piece
+	playerTurn     PLAYER
 	checkMate      bool
 	isWhiteChecked bool
 	isBlackChecked bool
-	moves          []string
 }
 
 type Action struct {
+	uci       string
 	posStart  int
 	posEnd    int
 	promotion PIECE_TYPE
 	who       PLAYER
-	uci       string
 }
 
 func queenDirections() []DirectionVector {
@@ -219,7 +219,7 @@ func (gs *GameState) getAllAllowedMovements(pos int, who PLAYER) ([]int, error) 
 	if pos < 0 || pos > 63 {
 		return []int{}, fmt.Errorf("invalid position")
 	}
-	allowedMovePositions := []int{}
+	var allowedMovePositions []int
 	switch gs.table[pos].PieceType {
 	case PAWN:
 		allowedMovePositions = gs.getPawnMovements(pos, who)
