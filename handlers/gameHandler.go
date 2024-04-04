@@ -22,7 +22,7 @@ func (gh *GameHandler) getGame(c *gin.Context) {
 		handlers_messages.PushGameNotFoundMessage(c, idParam)
 		return
 	}
-	_, err = GetCurrentSession(c)
+	session, err := GetCurrentSession(c)
 	if err != nil {
 		handlers_messages.PushGameNotFoundMessage(c, idParam)
 	}
@@ -34,7 +34,7 @@ func (gh *GameHandler) getGame(c *gin.Context) {
 		handlers_messages.PushGameNotFoundMessage(c, idParam)
 		return
 	}
-	gameStatus, err := handlers_messages.GameStatusFromGameModel(game)
+	gameStatus, err := handlers_messages.GameStatusFromGameModel(game, session)
 	if err != nil {
 		handlers_messages.PushGameNotFoundMessage(c, idParam)
 		return

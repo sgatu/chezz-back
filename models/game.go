@@ -34,7 +34,6 @@ func (g *Game) SetWhitePlayer(whitePlayer int64) error {
 	if g.whitePlayer != 0 {
 		return fmt.Errorf("white player already defined")
 	}
-	fmt.Println("setting white player")
 	g.whitePlayer = whitePlayer
 	return nil
 }
@@ -54,7 +53,7 @@ func (g *Game) IsPlayer(playerId int64) bool {
 func (g *Game) UpdateGame(playerId int64, uciMove string) error {
 	if (g.gs.GetPlayerTurn() == game.BLACK_PLAYER && playerId != g.blackPlayer) ||
 		(g.gs.GetPlayerTurn() == game.WHITE_PLAYER && playerId != g.whitePlayer) {
-		return fmt.Errorf("not your turn, player turn %+v, %+v", g.gs.GetPlayerTurn(), playerId)
+		return fmt.Errorf("not your turn")
 	}
 	return g.gs.UpdateGameState(uciMove)
 }
