@@ -8,8 +8,8 @@ import (
 )
 
 type Game struct {
-	id          int64
 	gs          *game.GameState
+	id          int64
 	whitePlayer int64
 	blackPlayer int64
 }
@@ -17,6 +17,7 @@ type Game struct {
 func (g *Game) Id() int64 {
 	return g.id
 }
+
 func (g *Game) GameState() *game.GameState {
 	return g.gs
 }
@@ -43,6 +44,10 @@ func (g *Game) SetBlackPlayer(blackPlayer int64) error {
 	}
 	g.blackPlayer = blackPlayer
 	return nil
+}
+
+func (g *Game) IsPlayer(playerId int64) bool {
+	return g.blackPlayer == playerId || g.whitePlayer == playerId
 }
 
 func (g *Game) UpdateGame(playerId int64, uciMove string) error {

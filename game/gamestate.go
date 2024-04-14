@@ -6,16 +6,21 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+
+	"github.com/sgatu/chezz-back/errors"
 )
 
-type PLAYER int
-type PIECE_TYPE int
+type (
+	PLAYER     int
+	PIECE_TYPE int
+)
 
 const (
 	WHITE_PLAYER PLAYER = iota
 	BLACK_PLAYER
 	UNKNOWN_PLAYER
 )
+
 const (
 	UNKNOWN_PIECE PIECE_TYPE = iota
 	PAWN
@@ -52,21 +57,21 @@ const (
 )
 
 type GameState struct {
-	playerTurn     PLAYER
 	table          [64]*Piece
+	moves          []string
 	outTable       []Piece
+	playerTurn     PLAYER
 	checkMate      bool
 	isWhiteChecked bool
 	isBlackChecked bool
-	moves          []string
 }
 
 type Action struct {
+	uci       string
 	posStart  int
 	posEnd    int
 	promotion PIECE_TYPE
 	who       PLAYER
-	uci       string
 }
 
 func queenDirections() []DirectionVector {
@@ -81,6 +86,7 @@ func queenDirections() []DirectionVector {
 		{-1, 1},
 	}
 }
+
 func rookDirections() []DirectionVector {
 	return []DirectionVector{
 		{-1, 0},
@@ -89,6 +95,7 @@ func rookDirections() []DirectionVector {
 		{1, 0},
 	}
 }
+
 func bishopDirections() []DirectionVector {
 	return []DirectionVector{
 		{-1, -1},
@@ -107,6 +114,7 @@ func coordsToPos(letter rune, pos int) (int, error) {
 	}
 	return p, nil
 }
+
 func posToCoords(pos int) (rune, int, error) {
 	if pos < 0 || pos > 63 {
 		return ' ', 0, fmt.Errorf("invalid pos")
@@ -115,6 +123,7 @@ func posToCoords(pos int) (rune, int, error) {
 	row := (pos / 8) + 1
 	return col, row, nil
 }
+
 func getPieceFromQualifier(r byte) PIECE_TYPE {
 	switch r {
 	case 'B', 'b':
@@ -153,6 +162,7 @@ func (gs *GameState) checkIfCheckMate() bool {
 	}
 	return true
 }
+
 func (gs *GameState) getPawnMovements(pos int, who PLAYER) []int {
 	directionMultiplier := -1
 	expectedEatColor := WHITE_PLAYER
@@ -185,6 +195,7 @@ func (gs *GameState) getPawnMovements(pos int, who PLAYER) []int {
 	}
 	return allowedMovePositions
 }
+
 func (gs *GameState) getKingMovements(startPos int, who PLAYER) []int {
 	relativePos := []int{8, -8, 7, 9, -7, -9, -1, 1}
 	eatablePlayer := gs.getOppositePlayer(who)
@@ -203,11 +214,12 @@ func (gs *GameState) getKingMovements(startPos int, who PLAYER) []int {
 	}
 	return allowedMovePositions
 }
+
 func (gs *GameState) getAllAllowedMovements(pos int, who PLAYER) ([]int, error) {
 	if pos < 0 || pos > 63 {
 		return []int{}, fmt.Errorf("invalid position")
 	}
-	var allowedMovePositions = []int{}
+	var allowedMovePositions []int
 	switch gs.table[pos].PieceType {
 	case PAWN:
 		allowedMovePositions = gs.getPawnMovements(pos, who)
@@ -226,6 +238,7 @@ func (gs *GameState) getAllAllowedMovements(pos int, who PLAYER) ([]int, error) 
 	}
 	return allowedMovePositions, nil
 }
+
 func (gs *GameState) getOppositePlayer(player PLAYER) PLAYER {
 	/**
 	below equals to:
@@ -237,21 +250,25 @@ func (gs *GameState) getOppositePlayer(player PLAYER) PLAYER {
 	*/
 	return WHITE_PLAYER ^ BLACK_PLAYER ^ player
 }
+
 func (gs *GameState) getQueenMovements(pos int, who PLAYER) []int {
 	return gs.getContinuousMovingPieceMovements(pos, who, queenDirections())
 }
+
 func (gs *GameState) getRookMovements(pos int, who PLAYER) []int {
 	return gs.getContinuousMovingPieceMovements(pos, who, rookDirections())
 }
+
 func (gs *GameState) getBishopMovements(pos int, who PLAYER) []int {
 	return gs.getContinuousMovingPieceMovements(pos, who, bishopDirections())
 }
+
 func (gs *GameState) getKnightMovements(pos int, who PLAYER) []int {
 	diffs := []int{-17, -15, 15, 17, -10, -6, 10, 6}
 	allowedMovePositions := []int{}
 	for _, diff := range diffs {
 		newPos := pos + diff
-		//is a valid movement position and check if the positions is either empty or has an enemy piece
+		// is a valid movement position and check if the positions is either empty or has an enemy piece
 		if newPos >= 0 && newPos <= 63 &&
 			math.Abs(float64(pos%8)-float64(newPos%8)) <= 2 &&
 			(gs.table[newPos] == nil || gs.table[newPos].Player != who) {
@@ -261,9 +278,10 @@ func (gs *GameState) getKnightMovements(pos int, who PLAYER) []int {
 	}
 	return allowedMovePositions
 }
+
 func (gs *GameState) getContinuousMovingPieceMovements(pos int, who PLAYER, directionMultipliers []DirectionVector) []int {
 	skipDirections := 0
-	//while it takes a bit more memory i think it's more optimal than recreating the slice when removing items, TBT(to be tested)
+	// while it takes a bit more memory i think it's more optimal than recreating the slice when removing items, TBT(to be tested)
 	directionsEnabled := make([]int, len(directionMultipliers))
 	for i := range directionsEnabled {
 		directionsEnabled[i] = 1
@@ -297,6 +315,7 @@ func (gs *GameState) getContinuousMovingPieceMovements(pos int, who PLAYER, dire
 	}
 	return allowedMovePositions
 }
+
 func (gs *GameState) processContinuousMovingPiece(action *Action, directionMultipliers []DirectionVector) error {
 	allowedMovePositions := gs.getContinuousMovingPieceMovements(action.posStart, action.who, directionMultipliers)
 	return gs.applyAction(action, allowedMovePositions)
@@ -313,22 +332,27 @@ func (gs *GameState) processRookMovement(action *Action) error {
 func (gs *GameState) processQueenMovement(action *Action) error {
 	return gs.processContinuousMovingPiece(action, queenDirections())
 }
+
 func (gs *GameState) processKnightMovement(action *Action) error {
 	allowedMovePositions := gs.getKnightMovements(action.posStart, action.who)
 	return gs.applyAction(action, allowedMovePositions)
 }
+
 func (gs *GameState) processPawnMovement(action *Action) error {
 	allowedMovePositions := gs.getPawnMovements(action.posStart, action.who)
 	if !slices.Contains(allowedMovePositions, action.posEnd) {
-		return &InvalidMoveError{
-			message: fmt.Sprintf("not a valid movement, allowed moves %+v", allowedMovePositions),
-			code:    "MOVE_NOT_ALLOWED",
+		return &errors.InvalidMoveError{
+			Message: fmt.Sprintf("not a valid movement, allowed moves %+v", allowedMovePositions),
+			ErrCode: "MOVE_NOT_ALLOWED",
 		}
 	}
 
 	if (action.posEnd < 8 && action.who == BLACK_PLAYER) || (action.posEnd > 55 && action.who == WHITE_PLAYER) {
 		if action.promotion == UNKNOWN_PIECE {
-			return &InvalidMoveError{message: "move requires promotion", code: "MOVE_MISSING_PROMOTION"}
+			return &errors.InvalidMoveError{
+				Message: "move requires promotion",
+				ErrCode: "MOVE_MISSING_PROMOTION",
+			}
 		}
 		gs.table[action.posEnd] = newPiece(action.promotion, action.who, true)
 		gs.table[action.posStart] = nil
@@ -342,11 +366,12 @@ func (gs *GameState) processKingMovement(action *Action) error {
 	allowedMovePositions := gs.getKingMovements(action.posStart, action.who)
 	return gs.applyAction(action, allowedMovePositions)
 }
+
 func (gs *GameState) applyAction(action *Action, allowedMovePositions []int) error {
 	if !slices.Contains(allowedMovePositions, action.posEnd) {
-		return &InvalidMoveError{
-			message: fmt.Sprintf("invalid movement, allowed %+v", allowedMovePositions),
-			code:    "MOVE_NOT_ALLOWED",
+		return &errors.InvalidMoveError{
+			Message: fmt.Sprintf("invalid movement, allowed %+v", allowedMovePositions),
+			ErrCode: "MOVE_NOT_ALLOWED",
 		}
 	}
 	if gs.table[action.posEnd] != nil {
@@ -359,8 +384,8 @@ func (gs *GameState) applyAction(action *Action, allowedMovePositions []int) err
 }
 
 func (gs *GameState) checkIfCheck() (bool, bool) {
-	var whiteKingPos int = -1
-	var blackKingPos int = -1
+	whiteKingPos := -1
+	blackKingPos := -1
 	for i := range gs.table {
 		if gs.table[i] != nil && gs.table[i].PieceType == KING {
 			if gs.table[i].Player == WHITE_PLAYER {
@@ -391,6 +416,7 @@ func (gs *GameState) checkIfCheck() (bool, bool) {
 	}
 	return isWhiteChecked, isBlackChecked
 }
+
 func NewGameState() *GameState {
 	table := [64]*Piece{}
 	for i := 0; i < 8; i++ {
@@ -425,6 +451,7 @@ func NewGameState() *GameState {
 		moves:          []string{},
 	}
 }
+
 func FromSerialized(serializedData []byte) (*GameState, error) {
 	playerTurn := WHITE_PLAYER
 	table := [64]*Piece{}
@@ -462,7 +489,7 @@ func FromSerialized(serializedData []byte) (*GameState, error) {
 		}
 		return "", fmt.Errorf("could not convert bytes")
 	}
-	//used to recover moves
+	// used to recover moves
 	startPos := byte(255)
 	endPos := byte(255)
 	for i, b := range serializedData {
@@ -493,7 +520,6 @@ func FromSerialized(serializedData []byte) (*GameState, error) {
 					startPos = 255
 				}
 			}
-
 		}
 	}
 	return &GameState{
@@ -542,10 +568,11 @@ func (gs *GameState) Serialize() ([]byte, error) {
 	}
 	return returnBytes, nil
 }
-func (gs *GameState) uci2Action(action string) (*Action, *UnparseableMoveError) {
+
+func (gs *GameState) uci2Action(action string) (*Action, *errors.UnparseableMoveError) {
 	matches := regexpUCI.FindStringSubmatch(action)
 	if matches == nil {
-		return nil, &UnparseableMoveError{}
+		return nil, &errors.UnparseableMoveError{}
 	}
 	startPos, _ := coordsToPos(rune(matches[1][0]), int(matches[1][1]-'0'))
 	endPos, _ := coordsToPos(rune(matches[2][0]), int(matches[2][1]-'0'))
@@ -569,12 +596,15 @@ func (gs *GameState) uci2Action(action string) (*Action, *UnparseableMoveError) 
 func (gs *GameState) GetPlayerTurn() PLAYER {
 	return gs.playerTurn
 }
+
 func (gs *GameState) GetBoardState() [64]*Piece {
 	return gs.table
 }
+
 func (gs *GameState) InCheckMate() bool {
 	return gs.checkMate
 }
+
 func (gs *GameState) GetCheckedPlayer() PLAYER {
 	if gs.isBlackChecked {
 		return BLACK_PLAYER
@@ -584,39 +614,41 @@ func (gs *GameState) GetCheckedPlayer() PLAYER {
 	}
 	return UNKNOWN_PLAYER
 }
+
 func (gs *GameState) UpdateGameState(uciAction string) error {
 	action, err := gs.uci2Action(uciAction)
 	if err != nil {
 		return err
 	}
 	if gs.checkMate {
-		return &InvalidMoveError{
-			message: "Game in checkmate",
-			code:    "CHECKMATE",
+		return &errors.InvalidMoveError{
+			Message: "Game in checkmate",
+			ErrCode: "CHECKMATE",
 		}
 	}
-	if action.who != gs.playerTurn {
-		return &InvalidMoveError{
-			message: "Not your turn",
-			code:    "INVALID_TURN_MOVE",
-		}
-	}
+	// control make no sense, action.who is populated from gs.playerTurn, this will never fail
+	// if action.who != gs.playerTurn {
+	// 	return &InvalidMoveError{
+	// 		message: "Not your turn",
+	// 		code:    "INVALID_TURN_MOVE",
+	// 	}
+	// }
 	if gs.table[action.posStart] == nil || gs.table[action.posStart].Player != action.who {
-		return &InvalidMoveError{
-			message: "No piece selected or piece not owned",
-			code:    "INVALID_PIECE_SELECTED",
+		return &errors.InvalidMoveError{
+			Message: "No piece selected or piece not owned",
+			ErrCode: "INVALID_PIECE_SELECTED",
 		}
 	}
 	if gs.table[action.posEnd] != nil && gs.table[action.posEnd].Player == action.who {
-		return &InvalidMoveError{
-			message: "Move position invalid, already occupied by another piece",
-			code:    "INVALID_POSITION",
+		return &errors.InvalidMoveError{
+			Message: "Move position invalid, already occupied by another piece",
+			ErrCode: "INVALID_POSITION",
 		}
 	}
 	if action.posStart == action.posEnd {
-		return &InvalidMoveError{
-			message: "No move made",
-			code:    "NO_MOVE",
+		return &errors.InvalidMoveError{
+			Message: "No move made",
+			ErrCode: "NO_MOVE",
 		}
 	}
 	beforeState := gs.table
@@ -639,9 +671,9 @@ func (gs *GameState) UpdateGameState(uciAction string) error {
 		whiteCheck, blackCheck := gs.checkIfCheck()
 		if (whiteCheck && gs.playerTurn == WHITE_PLAYER) || (blackCheck && gs.playerTurn == BLACK_PLAYER) {
 			gs.table = beforeState
-			return &InvalidMoveError{
-				message: "Move should not result in check",
-				code:    "MOVE_IN_CHECK",
+			return &errors.InvalidMoveError{
+				Message: "Move should not result in check",
+				ErrCode: "MOVE_IN_CHECK",
 			}
 		}
 		gs.moves = append(gs.moves, action.uci)

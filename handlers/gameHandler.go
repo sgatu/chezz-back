@@ -18,7 +18,7 @@ type GameHandler struct {
 func (gh *GameHandler) getGame(c *gin.Context) {
 	idParam := c.Param("id")
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
+	if err != nil || id < 1 {
 		handlers_messages.PushGameNotFoundMessage(c, idParam)
 		return
 	}
@@ -26,15 +26,15 @@ func (gh *GameHandler) getGame(c *gin.Context) {
 	if err != nil {
 		handlers_messages.PushGameNotFoundMessage(c, idParam)
 	}
-	userId := session.UserId
+	// userId := session.UserId
 	game, err := gh.gameRepository.GetGame(id)
-	if err != nil || game == nil ||
-		(game.BlackPlayer() != userId && game.WhitePlayer() != userId) {
+	if err != nil || game == nil { //||
+		// (game.BlackPlayer() != userId && game.WhitePlayer() != userId) {
 
 		handlers_messages.PushGameNotFoundMessage(c, idParam)
 		return
 	}
-	gameStatus, err := handlers_messages.GameStatusFromGameModel(game)
+	gameStatus, err := handlers_messages.GameStatusFromGameModel(game, session)
 	if err != nil {
 		handlers_messages.PushGameNotFoundMessage(c, idParam)
 		return
@@ -44,19 +44,14 @@ func (gh *GameHandler) getGame(c *gin.Context) {
 
 func (gh *GameHandler) createNewGame(c *gin.Context) {
 	session, err := GetCurrentSession(c)
-
-	//this should not happen
+	// this should not happen
 	if err != nil {
 		c.JSON(401, handlers_messages.NewUnknownSessionError())
 		return
 	}
-
-	isBlackPlayer := false
-	if c.Query("is_black") == "true" {
-		isBlackPlayer = true
-	}
+	isBlackQuery := c.Query("is_black")
+	isBlackPlayer := isBlackQuery == "true" || isBlackQuery == "1" || isBlackQuery == "yes"
 	game := models.NewGame(gh.node, session.UserId, isBlackPlayer)
-
 	gh.gameRepository.SaveGame(game)
 	c.JSON(http.StatusCreated, struct {
 		Message string `json:"message"`
