@@ -37,19 +37,22 @@ func (ph *PlayHandler) Play(c *gin.Context) {
 		handlers_messages.PushGameNotFoundMessage(c, idParam)
 		return
 	}
+	requiresUpdate := false
 	// set secondary player
 	if game.BlackPlayer() != session.UserId && game.WhitePlayer() != session.UserId {
 		if game.BlackPlayer() == 0 {
+			requiresUpdate = true
 			fmt.Printf("Setting black player to %+v\n", session.UserId)
 			game.SetBlackPlayer(session.UserId)
 		}
 		if game.WhitePlayer() == 0 {
+			requiresUpdate = true
 			fmt.Printf("Setting white player to %+v\n", session.UserId)
 			game.SetWhitePlayer(session.UserId)
 		}
 		ph.gameRepository.SaveGame(game)
 	}
-	liveGameState, err := ph.gameManager.GetLiveGameState(id)
+	liveGameState, err := ph.gameManager.GetLiveGameState(id, requiresUpdate)
 	if err != nil {
 		handlers_messages.PushGameNotFoundMessage(c, idParam)
 	}
@@ -79,7 +82,7 @@ func (ph *PlayHandler) Play(c *gin.Context) {
 						// client closed the connection
 						return
 					}
-					fmt.Printf("No message received...%+v - %+v\n", err, message)
+					// fmt.Printf("No message received...%+v - %+v\n", err, message)
 					continue
 				}
 				fmt.Println("New message", string(message[len(message)-1].Payload))

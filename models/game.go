@@ -53,6 +53,8 @@ func (g *Game) IsPlayer(playerId int64) bool {
 func (g *Game) UpdateGame(playerId int64, uciMove string) error {
 	if (g.gs.GetPlayerTurn() == game.BLACK_PLAYER && playerId != g.blackPlayer) ||
 		(g.gs.GetPlayerTurn() == game.WHITE_PLAYER && playerId != g.whitePlayer) {
+
+		fmt.Printf("playerTurn: %+v, playerId: %+v, blackPlayer: %+v, whitePlayer: %+v\n", g.gs.GetPlayerTurn(), playerId, g.blackPlayer, g.whitePlayer)
 		return fmt.Errorf("not your turn")
 	}
 	return g.gs.UpdateGameState(uciMove)

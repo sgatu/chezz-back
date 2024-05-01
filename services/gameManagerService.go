@@ -32,7 +32,7 @@ func NewGameManagerService(gameRepository models.GameRepository) *GameManagerSer
 	}
 }
 
-func (s *GameManagerService) GetLiveGameState(gameId int64) (*LiveGameState, error) {
+func (s *GameManagerService) GetLiveGameState(gameId int64, requiresUpdate bool) (*LiveGameState, error) {
 	if s.liveGameStates[gameId] == nil {
 		game, err := s.gameRepository.GetGame(gameId)
 		if err != nil {
@@ -47,6 +47,12 @@ func (s *GameManagerService) GetLiveGameState(gameId int64) (*LiveGameState, err
 			gameManager:       s,
 		}
 		s.liveGameStates[gameId].startAwaitingMoves()
+	} else if requiresUpdate {
+		game, err := s.gameRepository.GetGame(gameId)
+		if err != nil {
+			return nil, err
+		}
+		s.liveGameStates[gameId].game = game
 	}
 	return s.liveGameStates[gameId], nil
 }

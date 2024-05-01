@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -51,10 +52,11 @@ func (gh *GameHandler) createNewGame(c *gin.Context) {
 	}
 	isBlackQuery := c.Query("is_black")
 	isBlackPlayer := isBlackQuery == "true" || isBlackQuery == "1" || isBlackQuery == "yes"
+	fmt.Printf("Creating game as %+v \n", session)
 	game := models.NewGame(gh.node, session.UserId, isBlackPlayer)
 	gh.gameRepository.SaveGame(game)
 	c.JSON(http.StatusCreated, struct {
 		Message string `json:"message"`
-		GameId  int64  `json:"game_id"`
-	}{Message: "Game created", GameId: game.Id()})
+		GameId  string `json:"game_id"`
+	}{Message: "Game created", GameId: fmt.Sprint(game.Id())})
 }

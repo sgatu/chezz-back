@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/bwmarrin/snowflake"
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 	"github.com/redis/go-redis/v9"
@@ -35,6 +36,10 @@ func getEnvDefaultInt(key string, defaultValue int) int {
 func SetupMiddlewares(engine *gin.Engine, node *snowflake.Node, redisClient *redis.Client) {
 	sessionRedisRepo := repositories.NewRedisSessionRepository(redisClient)
 	sessionManager := middleware.SessionManager{SessionRepository: sessionRedisRepo, Node: node}
+	corsConfig := cors.DefaultConfig()
+	corsConfig.AllowOrigins = []string{"http://localhost:5173"}
+	corsConfig.AllowCredentials = true
+	engine.Use(cors.New(corsConfig))
 	engine.Use(sessionManager.ManageSession())
 }
 

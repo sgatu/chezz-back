@@ -1,13 +1,17 @@
 package handlers_messages
 
-import "github.com/sgatu/chezz-back/models"
+import (
+	"fmt"
+
+	"github.com/sgatu/chezz-back/models"
+)
 
 type GameStatusMessage struct {
 	MyRelation  string `json:"relation"`
+	BlackPlayer string `json:"blackPlayer"`
+	WhitePlayer string `json:"whitePlayer"`
+	GameId      string `json:"gameId"`
 	Board       []byte `json:"board"`
-	BlackPlayer int64  `json:"blackPlayer"`
-	WhitePlayer int64  `json:"whitePlayer"`
-	GameId      int64  `json:"gameId"`
 }
 
 func GameStatusFromGameModel(g *models.Game, s *models.SessionStore) (*GameStatusMessage, error) {
@@ -22,9 +26,9 @@ func GameStatusFromGameModel(g *models.Game, s *models.SessionStore) (*GameStatu
 		relation = "white"
 	}
 	return &GameStatusMessage{
-		BlackPlayer: g.BlackPlayer(),
-		WhitePlayer: g.WhitePlayer(),
-		GameId:      g.Id(),
+		BlackPlayer: fmt.Sprint(g.BlackPlayer()),
+		WhitePlayer: fmt.Sprint(g.WhitePlayer()),
+		GameId:      fmt.Sprint(g.Id()),
 		Board:       gs,
 		MyRelation:  relation,
 	}, nil

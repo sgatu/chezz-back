@@ -57,13 +57,12 @@ const (
 )
 
 type GameState struct {
-	table          [64]*Piece
-	moves          []string
-	outTable       []Piece
-	playerTurn     PLAYER
-	checkMate      bool
-	isWhiteChecked bool
-	isBlackChecked bool
+	table         [64]*Piece
+	moves         []string
+	outTable      []Piece
+	playerTurn    PLAYER
+	checkedPlayer PLAYER
+	checkMate     bool
 }
 
 type Action struct {
@@ -442,18 +441,19 @@ func NewGameState() *GameState {
 	}
 
 	return &GameState{
-		playerTurn:     WHITE_PLAYER,
-		table:          table,
-		outTable:       []Piece{},
-		checkMate:      false,
-		isWhiteChecked: false,
-		isBlackChecked: false,
-		moves:          []string{},
+		playerTurn:    WHITE_PLAYER,
+		table:         table,
+		outTable:      []Piece{},
+		checkMate:     false,
+		checkedPlayer: UNKNOWN_PLAYER,
+		moves:         []string{},
 	}
 }
 
 func FromSerialized(serializedData []byte) (*GameState, error) {
 	playerTurn := WHITE_PLAYER
+	checkedPlayer := UNKNOWN_PLAYER
+	isCheckMate := false
 	table := [64]*Piece{}
 	outPieces := []Piece{}
 	moves := []string{}
@@ -499,9 +499,17 @@ func FromSerialized(serializedData []byte) (*GameState, error) {
 			}
 			continue
 		}
-		if i < 65 {
+		if i == 1 {
+			checkedPlayer = PLAYER(b)
+			continue
+		}
+		if i == 2 {
+			isCheckMate = b == 1
+			continue
+		}
+		if i < 67 {
 			if b != 0 {
-				table[i-1] = pieceFromByte(b)
+				table[i-3] = pieceFromByte(b)
 			}
 		} else {
 			if b == 0 && !readingMoves {
@@ -523,10 +531,12 @@ func FromSerialized(serializedData []byte) (*GameState, error) {
 		}
 	}
 	return &GameState{
-		playerTurn: playerTurn,
-		table:      table,
-		outTable:   outPieces,
-		moves:      moves,
+		playerTurn:    playerTurn,
+		table:         table,
+		outTable:      outPieces,
+		moves:         moves,
+		checkedPlayer: checkedPlayer,
+		checkMate:     isCheckMate,
 	}, nil
 }
 
@@ -544,16 +554,19 @@ func (gs *GameState) Serialize() ([]byte, error) {
 		}
 		return byte(typeB)
 	}
-	returnBytes := make([]byte, 0, 65)
+	returnBytes := make([]byte, 0, 67)
 	pieceBytes := make([]byte, 0, 64)
 	for _, p := range gs.table {
 		pieceBytes = append(pieceBytes, pieceToByte(p))
 	}
-	bPTurn := byte(0)
-	if gs.playerTurn == BLACK_PLAYER {
-		bPTurn = 1
+
+	returnBytes = append(returnBytes, byte(gs.playerTurn))
+	returnBytes = append(returnBytes, byte(gs.checkedPlayer))
+	if gs.checkMate {
+		returnBytes = append(returnBytes, byte(1))
+	} else {
+		returnBytes = append(returnBytes, byte(0))
 	}
-	returnBytes = append(returnBytes, bPTurn)
 	returnBytes = append(returnBytes, pieceBytes...)
 	for _, outPiece := range gs.outTable {
 		returnBytes = append(returnBytes, pieceToByte(&outPiece))
@@ -606,13 +619,7 @@ func (gs *GameState) InCheckMate() bool {
 }
 
 func (gs *GameState) GetCheckedPlayer() PLAYER {
-	if gs.isBlackChecked {
-		return BLACK_PLAYER
-	}
-	if gs.isWhiteChecked {
-		return WHITE_PLAYER
-	}
-	return UNKNOWN_PLAYER
+	return gs.checkedPlayer
 }
 
 func (gs *GameState) UpdateGameState(uciAction string) error {
@@ -677,10 +684,14 @@ func (gs *GameState) UpdateGameState(uciAction string) error {
 			}
 		}
 		gs.moves = append(gs.moves, action.uci)
-		gs.isWhiteChecked = whiteCheck
-		gs.isBlackChecked = blackCheck
+		gs.checkedPlayer = UNKNOWN_PLAYER
+		if whiteCheck {
+			gs.checkedPlayer = WHITE_PLAYER
+		} else if blackCheck {
+			gs.checkedPlayer = BLACK_PLAYER
+		}
 		gs.playerTurn = gs.getOppositePlayer(gs.playerTurn)
-		if (gs.isWhiteChecked || gs.isBlackChecked) && gs.checkIfCheckMate() {
+		if (gs.checkedPlayer != UNKNOWN_PLAYER) && gs.checkIfCheckMate() {
 			gs.checkMate = true
 		}
 	}
