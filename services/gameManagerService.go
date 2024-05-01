@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/sgatu/chezz-back/game"
 	"github.com/sgatu/chezz-back/models"
 )
 
@@ -34,25 +35,25 @@ func NewGameManagerService(gameRepository models.GameRepository) *GameManagerSer
 
 func (s *GameManagerService) GetLiveGameState(gameId int64, requiresUpdate bool) (*LiveGameState, error) {
 	if s.liveGameStates[gameId] == nil {
-		game, err := s.gameRepository.GetGame(gameId)
+		gameEntity, err := s.gameRepository.GetGame(gameId)
 		if err != nil {
 			return nil, err
 		}
 		s.gameStatesLock.Lock()
 		defer s.gameStatesLock.Unlock()
 		s.liveGameStates[gameId] = &LiveGameState{
-			game:              game,
+			game:              gameEntity,
 			chCommandsChannel: make(chan MoveMessage, 10),
-			observers:         make([]chan string, 0),
+			observers:         make([]chan *game.MoveResult, 0),
 			gameManager:       s,
 		}
 		s.liveGameStates[gameId].startAwaitingMoves()
 	} else if requiresUpdate {
-		game, err := s.gameRepository.GetGame(gameId)
+		gameEntity, err := s.gameRepository.GetGame(gameId)
 		if err != nil {
 			return nil, err
 		}
-		s.liveGameStates[gameId].game = game
+		s.liveGameStates[gameId].game = gameEntity
 	}
 	return s.liveGameStates[gameId], nil
 }
@@ -67,17 +68,17 @@ type LiveGameState struct {
 	chCommandsChannel chan MoveMessage
 	game              *models.Game
 	gameManager       *GameManagerService
-	observers         []chan string
+	observers         []chan *game.MoveResult
 	observersMutex    sync.Mutex
 }
 
-func (lgs *LiveGameState) AddObserver(observerCh chan string) {
+func (lgs *LiveGameState) AddObserver(observerCh chan *game.MoveResult) {
 	lgs.observersMutex.Lock()
 	defer lgs.observersMutex.Unlock()
 	lgs.observers = append(lgs.observers, observerCh)
 }
 
-func (lgs *LiveGameState) RemoveObserver(observerCh chan string) {
+func (lgs *LiveGameState) RemoveObserver(observerCh chan *game.MoveResult) {
 	lgs.observersMutex.Lock()
 	defer lgs.observersMutex.Unlock()
 	for i, observer := range lgs.observers {
@@ -101,9 +102,9 @@ func (lgs *LiveGameState) startAwaitingMoves() {
 	go func() {
 		for move := range lgs.chCommandsChannel {
 			fmt.Printf("Received move: %+v\n", move)
-			err := lgs.game.UpdateGame(move.Who, move.Move)
+			result, err := lgs.game.UpdateGame(move.Who, move.Move)
 			if err == nil {
-				lgs.notifyMoveObservers(move.Move)
+				lgs.notifyMoveObservers(result)
 				lgs.gameManager.gameRepository.SaveGame(lgs.game)
 			} else {
 				fmt.Println("Could not execute move due to ", err)
@@ -115,10 +116,10 @@ func (lgs *LiveGameState) startAwaitingMoves() {
 	}()
 }
 
-func (lgs *LiveGameState) notifyMoveObservers(move string) {
+func (lgs *LiveGameState) notifyMoveObservers(moveResult *game.MoveResult) {
 	lgs.observersMutex.Lock()
 	defer lgs.observersMutex.Unlock()
 	for _, observer := range lgs.observers {
-		observer <- move
+		observer <- moveResult
 	}
 }

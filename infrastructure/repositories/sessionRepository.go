@@ -13,6 +13,7 @@ import (
 type RedisSessionRepository struct {
 	redisConn *redis.Client
 	ctx       context.Context
+	prefix    string
 }
 
 func (rsr *RedisSessionRepository) SaveSession(session *models.SessionStore) error {
@@ -20,11 +21,19 @@ func (rsr *RedisSessionRepository) SaveSession(session *models.SessionStore) err
 	if err != nil {
 		return err
 	}
-	rslt := rsr.redisConn.Set(rsr.ctx, session.SessionId, sessSerialized, time.Hour*24*30)
+	rslt := rsr.redisConn.Set(rsr.ctx, rsr.getSessionKey(session.SessionId), sessSerialized, time.Hour*24*30)
 	if rslt.Err() != nil {
 		fmt.Printf("%+v\n", rslt.Err())
 	}
 	return nil
+}
+
+func (rsr *RedisSessionRepository) SetPrefix(prefix string) {
+	rsr.prefix = prefix
+}
+
+func (rsr *RedisSessionRepository) getSessionKey(sessionId string) string {
+	return rsr.prefix + "session." + sessionId
 }
 
 // GetSession retrieves a session from the RedisSessionRepository by its session ID.
@@ -37,8 +46,8 @@ func (rsr *RedisSessionRepository) SaveSession(session *models.SessionStore) err
 //
 //	*models.SessionStore - The retrieved session store object.
 //	error - An error if the session retrieval fails.
-func (rsr *RedisSessionRepository) GetSession(session_id string) (*models.SessionStore, error) {
-	cmdResult := rsr.redisConn.Get(rsr.ctx, session_id)
+func (rsr *RedisSessionRepository) GetSession(sessionId string) (*models.SessionStore, error) {
+	cmdResult := rsr.redisConn.Get(rsr.ctx, rsr.getSessionKey(sessionId))
 	if cmdResult.Err() != nil {
 		return nil, cmdResult.Err()
 	}
@@ -50,7 +59,7 @@ func (rsr *RedisSessionRepository) GetSession(session_id string) (*models.Sessio
 	return &session, nil
 }
 
-func NewRedisSessionRepository(redisClient *redis.Client) models.SessionRepository {
+func NewRedisSessionRepository(redisClient *redis.Client) *RedisSessionRepository {
 	return &RedisSessionRepository{
 		redisConn: redisClient,
 		ctx:       context.Background(),

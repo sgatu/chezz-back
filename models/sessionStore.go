@@ -1,9 +1,9 @@
 package models
 
 type SessionStore struct {
+	Data      map[string]string
 	SessionId string
 	UserId    int64
-	Data      map[string]string
 }
 
 type SessionRepository interface {

@@ -33,8 +33,9 @@ func getEnvDefaultInt(key string, defaultValue int) int {
 	return parsed
 }
 
-func SetupMiddlewares(engine *gin.Engine, node *snowflake.Node, redisClient *redis.Client) {
+func SetupMiddlewares(engine *gin.Engine, node *snowflake.Node, redisClient *redis.Client, redisPrefix string) {
 	sessionRedisRepo := repositories.NewRedisSessionRepository(redisClient)
+	sessionRedisRepo.SetPrefix(redisPrefix)
 	sessionManager := middleware.SessionManager{SessionRepository: sessionRedisRepo, Node: node}
 	corsConfig := cors.DefaultConfig()
 	corsConfig.AllowOrigins = []string{"http://localhost:5173"}
@@ -94,10 +95,11 @@ func SetupRoutes(engine *gin.Engine) error {
 	redisClient := redis.NewClient(&redis.Options{
 		Addr: fmt.Sprintf("%s:%d", getEnvDefault("REDIS_HOST", "localhost"), getEnvDefaultInt("REDIS_PORT", 6379)),
 	})
-
-	SetupMiddlewares(engine, node, redisClient)
+	redisPrefix := getEnvDefault("REDIS_PREFIX", "")
+	SetupMiddlewares(engine, node, redisClient, redisPrefix)
 
 	gameRedisRepo := repositories.NewRedisGameRepository(redisClient)
+	gameRedisRepo.SetPrefix(redisPrefix)
 
 	healthHandler := &HealthHandler{
 		gameRepository: gameRedisRepo,

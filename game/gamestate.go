@@ -40,6 +40,11 @@ type DirectionVector struct {
 	x int
 	y int
 }
+type MoveResult struct {
+	Move          string
+	CheckedPlayer PLAYER
+	CheckMate     bool
+}
 
 func newPiece(_type PIECE_TYPE, player PLAYER, hasBeenMoved bool) *Piece {
 	return &Piece{
@@ -104,7 +109,7 @@ func bishopDirections() []DirectionVector {
 	}
 }
 
-var regexpUCI = regexp.MustCompile(`^([a-h][1-8])([a-h][1-8])([nbrq]?)$`)
+var regexpUCI = regexp.MustCompile(`^([a-h][1-8])([a-h][1-8])([nbrqNBRQ]?)$`)
 
 func coordsToPos(letter rune, pos int) (int, error) {
 	p := (pos-1)*8 + strings.IndexRune("abcdefgh", letter)
@@ -163,10 +168,10 @@ func (gs *GameState) checkIfCheckMate() bool {
 }
 
 func (gs *GameState) getPawnMovements(pos int, who PLAYER) []int {
-	directionMultiplier := -1
+	directionMultiplier := 1
 	expectedEatColor := WHITE_PLAYER
 	if who == WHITE_PLAYER {
-		directionMultiplier = 1
+		directionMultiplier = -1
 		expectedEatColor = BLACK_PLAYER
 	}
 
@@ -186,10 +191,16 @@ func (gs *GameState) getPawnMovements(pos int, who PLAYER) []int {
 	columnRight := rightPos % 8
 	columnLeft := leftPos % 8
 	currentColumn := pos % 8
-	if currentColumn-columnRight == (1*directionMultiplier) && gs.table[rightPos] != nil && gs.table[rightPos].Player == expectedEatColor {
+	/* check for eating movements
+	 * first: check if column left or right is 1 step away(if movement leads to jump from one side of the table to another it is invalid)
+	 * second: check if the new position has a enemy piece
+	 */
+	if math.Abs(float64(currentColumn-columnRight)) == 1 &&
+		gs.table[rightPos] != nil &&
+		gs.table[rightPos].Player == expectedEatColor {
 		allowedMovePositions = append(allowedMovePositions, rightPos)
 	}
-	if currentColumn-columnLeft == (-1*directionMultiplier) && gs.table[leftPos] != nil && gs.table[leftPos].Player == expectedEatColor {
+	if math.Abs(float64(currentColumn-columnLeft)) == 1 && gs.table[leftPos] != nil && gs.table[leftPos].Player == expectedEatColor {
 		allowedMovePositions = append(allowedMovePositions, leftPos)
 	}
 	return allowedMovePositions
@@ -421,23 +432,23 @@ func NewGameState() *GameState {
 	for i := 0; i < 8; i++ {
 		switch i {
 		case 0, 7:
-			table[i] = newPiece(ROOK, WHITE_PLAYER, false)
-			table[63-i] = newPiece(ROOK, BLACK_PLAYER, false)
+			table[i] = newPiece(ROOK, BLACK_PLAYER, false)
+			table[63-i] = newPiece(ROOK, WHITE_PLAYER, false)
 		case 1, 6:
-			table[i] = newPiece(KNIGHT, WHITE_PLAYER, false)
-			table[63-i] = newPiece(KNIGHT, BLACK_PLAYER, false)
+			table[i] = newPiece(KNIGHT, BLACK_PLAYER, false)
+			table[63-i] = newPiece(KNIGHT, WHITE_PLAYER, false)
 		case 2, 5:
-			table[i] = newPiece(BISHOP, WHITE_PLAYER, false)
-			table[63-i] = newPiece(BISHOP, BLACK_PLAYER, false)
+			table[i] = newPiece(BISHOP, BLACK_PLAYER, false)
+			table[63-i] = newPiece(BISHOP, WHITE_PLAYER, false)
 		case 3:
-			table[i] = newPiece(QUEEN, WHITE_PLAYER, false)
-			table[63-i-1] = newPiece(QUEEN, BLACK_PLAYER, false)
+			table[i] = newPiece(QUEEN, BLACK_PLAYER, false)
+			table[63-i-1] = newPiece(QUEEN, WHITE_PLAYER, false)
 		case 4:
-			table[i] = newPiece(KING, WHITE_PLAYER, false)
-			table[63-i+1] = newPiece(KING, BLACK_PLAYER, false)
+			table[i] = newPiece(KING, BLACK_PLAYER, false)
+			table[63-i+1] = newPiece(KING, WHITE_PLAYER, false)
 		}
-		table[8+i] = newPiece(PAWN, WHITE_PLAYER, false)
-		table[63-8-i] = newPiece(PAWN, BLACK_PLAYER, false)
+		table[8+i] = newPiece(PAWN, BLACK_PLAYER, false)
+		table[63-8-i] = newPiece(PAWN, WHITE_PLAYER, false)
 	}
 
 	return &GameState{
@@ -622,13 +633,13 @@ func (gs *GameState) GetCheckedPlayer() PLAYER {
 	return gs.checkedPlayer
 }
 
-func (gs *GameState) UpdateGameState(uciAction string) error {
+func (gs *GameState) UpdateGameState(uciAction string) (*MoveResult, error) {
 	action, err := gs.uci2Action(uciAction)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if gs.checkMate {
-		return &errors.InvalidMoveError{
+		return nil, &errors.InvalidMoveError{
 			Message: "Game in checkmate",
 			ErrCode: "CHECKMATE",
 		}
@@ -641,19 +652,19 @@ func (gs *GameState) UpdateGameState(uciAction string) error {
 	// 	}
 	// }
 	if gs.table[action.posStart] == nil || gs.table[action.posStart].Player != action.who {
-		return &errors.InvalidMoveError{
+		return nil, &errors.InvalidMoveError{
 			Message: "No piece selected or piece not owned",
 			ErrCode: "INVALID_PIECE_SELECTED",
 		}
 	}
 	if gs.table[action.posEnd] != nil && gs.table[action.posEnd].Player == action.who {
-		return &errors.InvalidMoveError{
+		return nil, &errors.InvalidMoveError{
 			Message: "Move position invalid, already occupied by another piece",
 			ErrCode: "INVALID_POSITION",
 		}
 	}
 	if action.posStart == action.posEnd {
-		return &errors.InvalidMoveError{
+		return nil, &errors.InvalidMoveError{
 			Message: "No move made",
 			ErrCode: "NO_MOVE",
 		}
@@ -674,26 +685,31 @@ func (gs *GameState) UpdateGameState(uciAction string) error {
 	case KNIGHT:
 		processErr = gs.processKnightMovement(action)
 	}
-	if processErr == nil {
-		whiteCheck, blackCheck := gs.checkIfCheck()
-		if (whiteCheck && gs.playerTurn == WHITE_PLAYER) || (blackCheck && gs.playerTurn == BLACK_PLAYER) {
-			gs.table = beforeState
-			return &errors.InvalidMoveError{
-				Message: "Move should not result in check",
-				ErrCode: "MOVE_IN_CHECK",
-			}
-		}
-		gs.moves = append(gs.moves, action.uci)
-		gs.checkedPlayer = UNKNOWN_PLAYER
-		if whiteCheck {
-			gs.checkedPlayer = WHITE_PLAYER
-		} else if blackCheck {
-			gs.checkedPlayer = BLACK_PLAYER
-		}
-		gs.playerTurn = gs.getOppositePlayer(gs.playerTurn)
-		if (gs.checkedPlayer != UNKNOWN_PLAYER) && gs.checkIfCheckMate() {
-			gs.checkMate = true
+	if processErr != nil {
+		return nil, processErr
+	}
+	whiteCheck, blackCheck := gs.checkIfCheck()
+	if (whiteCheck && gs.playerTurn == WHITE_PLAYER) || (blackCheck && gs.playerTurn == BLACK_PLAYER) {
+		gs.table = beforeState
+		return nil, &errors.InvalidMoveError{
+			Message: "Move should not result in check",
+			ErrCode: "MOVE_IN_CHECK",
 		}
 	}
-	return processErr
+	gs.moves = append(gs.moves, action.uci)
+	gs.checkedPlayer = UNKNOWN_PLAYER
+	if whiteCheck {
+		gs.checkedPlayer = WHITE_PLAYER
+	} else if blackCheck {
+		gs.checkedPlayer = BLACK_PLAYER
+	}
+	gs.playerTurn = gs.getOppositePlayer(gs.playerTurn)
+	if (gs.checkedPlayer != UNKNOWN_PLAYER) && gs.checkIfCheckMate() {
+		gs.checkMate = true
+	}
+	return &MoveResult{
+		Move:          uciAction,
+		CheckedPlayer: gs.checkedPlayer,
+		CheckMate:     gs.checkMate,
+	}, nil
 }

@@ -2,12 +2,11 @@ package repositories
 
 import (
 	"context"
-	"fmt"
-	"time"
-
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/json"
+	"fmt"
+	"time"
 
 	"github.com/redis/go-redis/v9"
 	"github.com/sgatu/chezz-back/game"
@@ -22,15 +21,20 @@ type gameMarshalStruct struct {
 }
 
 type RedisGameRepository struct {
-	redisConn *redis.Client
 	ctx       context.Context
+	redisConn *redis.Client
+	prefix    string
 }
 
-func NewRedisGameRepository(redisClient *redis.Client) models.GameRepository {
+func NewRedisGameRepository(redisClient *redis.Client) *RedisGameRepository {
 	return &RedisGameRepository{
 		redisConn: redisClient,
 		ctx:       context.Background(),
 	}
+}
+
+func (rgr *RedisGameRepository) SetPrefix(prefix string) {
+	rgr.prefix = prefix
 }
 
 // GetGame retrieves a game from the RedisGameRepository.
@@ -61,7 +65,7 @@ func (rgr *RedisGameRepository) SaveGame(g *models.Game) error {
 func (rgr *RedisGameRepository) getGameKey(id int64) string {
 	rawId := [8]byte{}
 	binary.LittleEndian.PutUint64(rawId[:], uint64(id))
-	return "game.{" + base64.RawStdEncoding.EncodeToString(rawId[:]) + "}"
+	return rgr.prefix + "game.{" + base64.RawStdEncoding.EncodeToString(rawId[:]) + "}"
 }
 
 // serializeGame serializes a game object into a byte array.
