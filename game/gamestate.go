@@ -167,6 +167,10 @@ func (gs *GameState) checkIfCheckMate() bool {
 	return true
 }
 
+func posInRange(pos int) bool {
+	return pos >= 0 && pos < 64
+}
+
 func (gs *GameState) getPawnMovements(pos int, who PLAYER) []int {
 	directionMultiplier := 1
 	expectedEatColor := WHITE_PLAYER
@@ -174,20 +178,25 @@ func (gs *GameState) getPawnMovements(pos int, who PLAYER) []int {
 		directionMultiplier = -1
 		expectedEatColor = BLACK_PLAYER
 	}
-
 	allowedMovePositions := []int{}
-	if gs.table[pos+(8*directionMultiplier)] == nil {
+	forwardPos := pos + (8 * directionMultiplier)
+	if posInRange(forwardPos) && gs.table[forwardPos] == nil {
 		allowedMovePositions = append(allowedMovePositions, pos+(8*directionMultiplier))
 	}
-	if len(allowedMovePositions) != 0 &&
+	forwardJumpPos := pos + (16 * directionMultiplier)
+	if posInRange(forwardJumpPos) &&
+		len(allowedMovePositions) != 0 &&
 		!gs.table[pos].HasBeenMoved &&
 		gs.table[allowedMovePositions[0]] == nil &&
-		gs.table[pos+(16*directionMultiplier)] == nil {
+		gs.table[forwardJumpPos] == nil {
 		allowedMovePositions = append(allowedMovePositions, pos+(16*directionMultiplier))
 	}
 	rightPos := pos + (7 * directionMultiplier)
 	leftPos := pos + (9 * directionMultiplier)
 
+	if !posInRange(rightPos) || !posInRange(leftPos) {
+		return allowedMovePositions
+	}
 	columnRight := rightPos % 8
 	columnLeft := leftPos % 8
 	currentColumn := pos % 8
@@ -349,6 +358,7 @@ func (gs *GameState) processKnightMovement(action *Action) error {
 }
 
 func (gs *GameState) processPawnMovement(action *Action) error {
+	fmt.Printf("Processing pawn movement %+v\n", action)
 	allowedMovePositions := gs.getPawnMovements(action.posStart, action.who)
 	if !slices.Contains(allowedMovePositions, action.posEnd) {
 		return &errors.InvalidMoveError{
@@ -357,13 +367,14 @@ func (gs *GameState) processPawnMovement(action *Action) error {
 		}
 	}
 
-	if (action.posEnd < 8 && action.who == BLACK_PLAYER) || (action.posEnd > 55 && action.who == WHITE_PLAYER) {
+	if (action.posEnd < 8 && action.who == WHITE_PLAYER) || (action.posEnd > 55 && action.who == BLACK_PLAYER) {
 		if action.promotion == UNKNOWN_PIECE {
 			return &errors.InvalidMoveError{
 				Message: "move requires promotion",
 				ErrCode: "MOVE_MISSING_PROMOTION",
 			}
 		}
+		fmt.Printf("Promoting pawn to %+v\n", action.promotion)
 		gs.table[action.posEnd] = newPiece(action.promotion, action.who, true)
 		gs.table[action.posStart] = nil
 		return nil

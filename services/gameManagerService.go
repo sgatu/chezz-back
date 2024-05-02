@@ -105,6 +105,7 @@ func (lgs *LiveGameState) startAwaitingMoves() {
 			result, err := lgs.game.UpdateGame(move.Who, move.Move)
 			if err == nil {
 				lgs.notifyMoveObservers(result)
+				fmt.Printf("Saving game")
 				lgs.gameManager.gameRepository.SaveGame(lgs.game)
 			} else {
 				fmt.Println("Could not execute move due to ", err)
