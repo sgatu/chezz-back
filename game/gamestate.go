@@ -61,6 +61,47 @@ const (
 	KillAction
 )
 
+type CastleRights struct {
+	whiteQueenSide bool
+	whiteKingSide  bool
+	blackKingSide  bool
+	blackQueenSide bool
+}
+
+func (cr CastleRights) Serialize() byte {
+	castleRights := byte(0)
+	if cr.whiteQueenSide {
+		castleRights |= 1
+	}
+	if cr.whiteKingSide {
+		castleRights |= 2
+	}
+	if cr.blackQueenSide {
+		castleRights |= 4
+	}
+	if cr.blackKingSide {
+		castleRights |= 8
+	}
+	return castleRights
+}
+
+func castleRightsFromByte(b byte) CastleRights {
+	cr := CastleRights{}
+	if b&1 == 1 {
+		cr.whiteQueenSide = true
+	}
+	if b&2 == 2 {
+		cr.whiteKingSide = true
+	}
+	if b&4 == 4 {
+		cr.blackQueenSide = true
+	}
+	if b&8 == 8 {
+		cr.blackKingSide = true
+	}
+	return cr
+}
+
 type GameState struct {
 	table         [64]*Piece
 	moves         []string
@@ -68,6 +109,7 @@ type GameState struct {
 	playerTurn    PLAYER
 	checkedPlayer PLAYER
 	checkMate     bool
+	castleRights  CastleRights
 }
 
 type Action struct {
@@ -231,6 +273,35 @@ func (gs *GameState) getKingMovements(startPos int, who PLAYER) []int {
 			allowedMovePositions = append(allowedMovePositions, newPos)
 		}
 	}
+	allowedMovePositions = append(allowedMovePositions, gs.getKingCastleRightsMovements(who)...)
+	return allowedMovePositions
+}
+
+func (gs *GameState) getKingCastleRightsMovements(who PLAYER) []int {
+	kingSide := gs.castleRights.blackKingSide
+	queenSide := gs.castleRights.blackQueenSide
+	kingFree := []int{5, 6}
+	kingMoveEndPos := 6
+	queenFree := []int{1, 2, 3}
+	queenMoveEndPos := 2
+	allowedMovePositions := []int{}
+	if who == WHITE_PLAYER {
+		kingSide = gs.castleRights.whiteKingSide
+		queenSide = gs.castleRights.whiteQueenSide
+		kingFree = []int{62, 61}
+		kingMoveEndPos = 62
+		queenFree = []int{59, 58, 57}
+		queenMoveEndPos = 58
+	}
+	if kingSide && gs.table[kingFree[0]] == nil && gs.table[kingFree[1]] == nil {
+		allowedMovePositions = append(allowedMovePositions, kingMoveEndPos)
+	}
+	if queenSide &&
+		gs.table[queenFree[0]] == nil &&
+		gs.table[queenFree[1]] == nil &&
+		gs.table[queenFree[2]] == nil {
+		allowedMovePositions = append(allowedMovePositions, queenMoveEndPos)
+	}
 	return allowedMovePositions
 }
 
@@ -388,6 +459,60 @@ func (gs *GameState) processKingMovement(action *Action) error {
 	return gs.applyAction(action, allowedMovePositions)
 }
 
+/**
+ * returns true if is a castling movement. the other two values are first the rook position and the second the rook end position
+ */
+func (gs *GameState) isCastlingMovement(action *Action) (bool, int, int) {
+	dist := float64(action.posEnd - action.posStart)
+	absdist := math.Abs(dist)
+	direction := 1
+	if dist < 0 {
+		direction = -1
+	}
+	isCastling := gs.table[action.posStart].PieceType == KING &&
+		absdist == 2 &&
+		!gs.table[action.posStart].HasBeenMoved
+
+	if isCastling {
+		rookEnd := action.posStart + 1*direction
+		rookStart := action.posStart + (int(absdist)+1)*direction
+		if direction < 0 {
+			rookStart -= 1
+		}
+		fmt.Printf("It's castling timeee, RookStart %+v, RookEnd: %+v, KingStart: %+v, KingEnd: %+v\n", rookStart, rookEnd, action.posStart, action.posEnd)
+		return isCastling, rookStart, rookEnd
+	}
+	return false, 0, 0
+}
+
+func (gs *GameState) updateCastleRights(action *Action) {
+	if gs.table[action.posEnd].PieceType == KING {
+		if action.who == WHITE_PLAYER {
+			gs.castleRights.whiteKingSide = false
+			gs.castleRights.whiteQueenSide = false
+		} else {
+			gs.castleRights.blackKingSide = false
+			gs.castleRights.blackQueenSide = false
+		}
+	} else if gs.table[action.posEnd].PieceType == ROOK {
+		if action.posStart == 1 || action.posStart == 56 {
+			if gs.castleRights.whiteQueenSide && action.who == WHITE_PLAYER {
+				gs.castleRights.whiteQueenSide = false
+			} else if gs.castleRights.blackQueenSide && action.who == BLACK_PLAYER {
+				gs.castleRights.blackQueenSide = false
+			}
+		}
+		if action.posStart == 7 || action.posStart == 63 {
+			if gs.castleRights.whiteKingSide && action.who == WHITE_PLAYER {
+				gs.castleRights.whiteKingSide = false
+			} else if gs.castleRights.blackKingSide && action.who == BLACK_PLAYER {
+				gs.castleRights.blackKingSide = false
+			}
+		}
+
+	}
+}
+
 func (gs *GameState) applyAction(action *Action, allowedMovePositions []int) error {
 	if !slices.Contains(allowedMovePositions, action.posEnd) {
 		return &errors.InvalidMoveError{
@@ -398,9 +523,15 @@ func (gs *GameState) applyAction(action *Action, allowedMovePositions []int) err
 	if gs.table[action.posEnd] != nil {
 		gs.outTable = append(gs.outTable, *gs.table[action.posEnd])
 	}
-	gs.table[action.posStart].HasBeenMoved = true
+	if isCastling, rookStart, rookEnd := gs.isCastlingMovement(action); isCastling {
+		gs.table[rookEnd] = gs.table[rookStart]
+		gs.table[rookEnd].HasBeenMoved = true
+		gs.table[rookStart] = nil
+	}
 	gs.table[action.posEnd] = gs.table[action.posStart]
 	gs.table[action.posStart] = nil
+	gs.table[action.posEnd].HasBeenMoved = true
+	gs.updateCastleRights(action)
 	return nil
 }
 
@@ -469,6 +600,12 @@ func NewGameState() *GameState {
 		checkMate:     false,
 		checkedPlayer: UNKNOWN_PLAYER,
 		moves:         []string{},
+		castleRights: CastleRights{
+			whiteQueenSide: true,
+			blackQueenSide: true,
+			whiteKingSide:  true,
+			blackKingSide:  true,
+		},
 	}
 }
 
@@ -511,6 +648,7 @@ func FromSerialized(serializedData []byte) (*GameState, error) {
 		}
 		return "", fmt.Errorf("could not convert bytes")
 	}
+	var castleRights CastleRights
 	// used to recover moves
 	startPos := byte(255)
 	endPos := byte(255)
@@ -529,9 +667,13 @@ func FromSerialized(serializedData []byte) (*GameState, error) {
 			isCheckMate = b == 1
 			continue
 		}
-		if i < 67 {
+		if i == 3 {
+			castleRights = castleRightsFromByte(b)
+			continue
+		}
+		if i < 68 {
 			if b != 0 {
-				table[i-3] = pieceFromByte(b)
+				table[i-4] = pieceFromByte(b)
 			}
 		} else {
 			if b == 0 && !readingMoves {
@@ -559,6 +701,7 @@ func FromSerialized(serializedData []byte) (*GameState, error) {
 		moves:         moves,
 		checkedPlayer: checkedPlayer,
 		checkMate:     isCheckMate,
+		castleRights:  castleRights,
 	}, nil
 }
 
@@ -576,7 +719,7 @@ func (gs *GameState) Serialize() ([]byte, error) {
 		}
 		return byte(typeB)
 	}
-	returnBytes := make([]byte, 0, 67)
+	returnBytes := make([]byte, 0, 68)
 	pieceBytes := make([]byte, 0, 64)
 	for _, p := range gs.table {
 		pieceBytes = append(pieceBytes, pieceToByte(p))
@@ -589,6 +732,7 @@ func (gs *GameState) Serialize() ([]byte, error) {
 	} else {
 		returnBytes = append(returnBytes, byte(0))
 	}
+	returnBytes = append(returnBytes, gs.castleRights.Serialize())
 	returnBytes = append(returnBytes, pieceBytes...)
 	for _, outPiece := range gs.outTable {
 		returnBytes = append(returnBytes, pieceToByte(&outPiece))
@@ -668,7 +812,10 @@ func (gs *GameState) UpdateGameState(uciAction string) (*MoveResult, error) {
 			ErrCode: "INVALID_PIECE_SELECTED",
 		}
 	}
-	if gs.table[action.posEnd] != nil && gs.table[action.posEnd].Player == action.who {
+	if gs.table[action.posEnd] != nil &&
+		gs.table[action.posEnd].Player == action.who &&
+		gs.table[action.posEnd].PieceType != ROOK &&
+		gs.table[action.posStart].PieceType != KING {
 		return nil, &errors.InvalidMoveError{
 			Message: "Move position invalid, already occupied by another piece",
 			ErrCode: "INVALID_POSITION",
