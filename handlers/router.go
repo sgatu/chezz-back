@@ -38,7 +38,7 @@ func SetupMiddlewares(engine *gin.Engine, node *snowflake.Node, redisClient *red
 	sessionRedisRepo.SetPrefix(redisPrefix)
 	sessionManager := middleware.SessionManager{SessionRepository: sessionRedisRepo, Node: node}
 	corsConfig := cors.DefaultConfig()
-	corsConfig.AllowOrigins = []string{"http://localhost:5173"}
+	corsConfig.AllowOrigins = []string{getEnvDefault("ALLOWED_DOMAIN", "http://localhost:5173")}
 	corsConfig.AllowCredentials = true
 	engine.Use(cors.New(corsConfig))
 	engine.Use(sessionManager.ManageSession())
