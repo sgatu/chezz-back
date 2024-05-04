@@ -2,10 +2,12 @@
 
 You'll need a redis server to store and retrieve the game state. This must be configured in a .env.{ENVIRONMENT} file, if no ENVIRONMENT is defined it will search for .env.dev file.
 
-This file must contain:
+This file must contain (actual configuration may differ):
 ```
 REDIS_HOST=localhost
 REDIS_PORT=6379
+REDIS_PREFIX=chezz:
+ALLOWED_DOMAIN=http://front-end.domain
 ```
 
 You can run a local redis service using .dev/docker-compose.yml.
@@ -33,8 +35,11 @@ make build
 ### Serialized Data Structure
 
 The gameState is serialized in binary following the next schema:
-
-[0-64] -> Table pieces with values calculated as follows
+0 -> Player turn -> 0 - WHITE PLAYER, 1 - BLACK PLAYER
+1 -> Checked player -> 0 - WHITE PLAYER, 1 - BLACK PLAYER, 2 - NO PLAYER
+2 -> Is game in checkMate -> 0 - No, 1 - Yes
+3 -> Castle rights -> Single byte with bit flags as following: &1 - White Queen Side, &2 - White King Side, &4 - Black Queen Side, &8 - Black King side 
+[4-68] -> Table positions with values calculated as follows
 ```PIECE_TYPE (1-6) * (IF PIECE_HAS_BEEN_MOVED -> 2 | 1) * (IF PLAYER IS BLACK -> 2 | 1)```
 OR
 ``` 0 IF SPACE IS EMPTY ```
@@ -69,17 +74,17 @@ OR
 
 **ii.** If not you check if the value is > 12, if so, the piece belongs to the black player and save that the player is black, else the player is white. 
 
-**iii.** If the player is black, substract from the value 12
+**iii.** If the player is black, subtract from the value 12
 
 **iv.** If the remaining value is > 6, then it means the piece was moved before, save as moved, if not the moved flag is false.
 
-**v.** If the piece was moved substract from the value 6
+**v.** If the piece was moved subtract from the value 6
 
 **vi.** The remaining value should be between 1-6 and you can interpret the PIECE_TYPE from it as shown in the list before.
 
 ##### Other serialized data inside the structure
 
-Past 64 bytes you'll find the pieces removed from the board, the format is the same, you read byte by byte untill you find a 0 byte which marks the end of the list of removed table pieces.
+Past 64 bytes you'll find the pieces removed from the board, the format is the same, you read byte by byte until you find a 0 byte which marks the end of the list of removed table pieces.
 
 After that 0 byte what follows is the history of the match, this has a dynamic length, and each 2 bytes represent a start and end position on the table between 0-63. 
 0 -> a1
@@ -91,3 +96,8 @@ After that 0 byte what follows is the history of the match, this has a dynamic l
 63 -> f8
 
 so each 2 bytes represent a full movement in UCI form like a2a4, which would be the bytes 0 and 3.
+
+
+#### Run it yourself
+
+Check it here: https://github.com/sgatu/chezz
