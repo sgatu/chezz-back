@@ -68,15 +68,11 @@ The gameState is serialized in binary following the next schema (first column ar
 ### How the board should be deserialized (bytes 4-67)
 
 ```
-i.   We start by checking if the position is 0, 
-     if so we set the board position to empty (PIECE_TYPE 0, PLAYER ID 2)
-ii.  If not we check if the value is > 12, if so, the piece belongs
-     to the black player and save that the player is black, else the player is white. 
-iii. If the player is black, subtract from the value 12
-iv.  If the remaining value is > 6 it means the piece was moved before.
-     We mark the piece as  moved if so.
-v.   If the piece was moved subtract from the value 6
-vi.  The remaining value should be between 1-6 and we can map the PIECE_TYPE as shown in the list before.
+Each table position is represented by a byte.
+Of this byte, last 3 bits are used encode the piece type (1-6) or the whole byte is 0 and it means that is an empty position.
+After the first 3 bits we have 2 flags
+  - &8 -> This bit encodes the owner of the piece, 0 - WHITE_PLAYER, 1 - BLACK PLAYER
+  - &16 -> This bit encodes if the piece has been moved, 0 - Not moved, 1 - Moved
 ```
 
 ##### 0 - 6 are pieces types
