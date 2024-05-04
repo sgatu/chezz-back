@@ -1,4 +1,4 @@
-### How to run?
+## How to run?
 
 You'll need a redis server to store and retrieve the game state. This must be configured in a .env.{ENVIRONMENT} file, if no ENVIRONMENT is defined it will search for .env.dev file.
 
@@ -32,25 +32,22 @@ make build
 ```
 
 
-### Serialized Data Structure
+## Serialized Data Structure
 
 The gameState is serialized in binary following the next schema (first column are byte positions):
 
 ```
-- byte 0 -> Player turn -> 0 - WHITE PLAYER, 1 - BLACK PLAYER
-- byte 1 -> Checked player -> 0 - WHITE PLAYER, 1 - BLACK PLAYER, 2 - NO PLAYER
-- byte 2 -> Is game in checkMate -> 0 - No, 1 - Yes
-- byte 3 -> Castle rights -> Single byte with bit flags as following: &1 - White Queen Side, &2 - White King Side, &4 - Black Queen Side, &8 - Black King side 
-- bytes [4-67] -> Table positions with values calculated as follows
+- byte at 0 -> Player turn -> 0 - WHITE PLAYER, 1 - BLACK PLAYER
+- byte at 1 -> Checked player -> 0 - WHITE PLAYER, 1 - BLACK PLAYER, 2 - NO PLAYER
+- byte at 2 -> Is game in checkMate -> 0 - No, 1 - Yes
+- byte at 3 -> Castle rights -> Single byte with bit flags as following: 
+    &1 - White Queen Side, &2 - White King Side, &4 - Black Queen Side, &8 - Black King side 
+- bytes between [4-67] -> Table positions with values calculated as follows
 
     PIECE_TYPE (1-6) * (IF PIECE_HAS_BEEN_MOVED -> 2 | 1) * (IF PLAYER IS BLACK -> 2 | 1)
-
-    OR
-
+      OR
     0 IF SPACE IS Empty
-```
 
-```
 - bytes [68...until we find a 0 byte] -> Captured pieces, deserialized as above
 
 - bytes[pos after 0...till the end of stream] -> UCI movements history. Each movement has a length of 2 to 3 bytes and is serialized as follows:
@@ -63,7 +60,7 @@ The gameState is serialized in binary following the next schema (first column ar
       4 -> R (Rook Promotion)
 ```
 
-##### How the board should be deserialized (bytes 4-67)
+### How the board should be deserialized (bytes 4-67)
 
 **i.** You start by checking if the position is 0, then you set the board position to empty(PIECE_TYPE 0, PLAYER ID 2)
 
@@ -77,7 +74,7 @@ The gameState is serialized in binary following the next schema (first column ar
 
 **vi.** The remaining value should be between 1-6 and you can interpret the PIECE_TYPE from it as shown in the list before.
 
-##### Other serialized data inside the structure (bytes 67-)
+### Other serialized data inside the structure (bytes 67-)
 
 Past 67 bytes you'll find the pieces removed from the board, the format is the same, you read byte by byte until you find a 0 byte which marks the end of the list of removed table pieces.
 
@@ -97,6 +94,6 @@ If so you must unset the first bit on the end position to get the real end posit
 So each 2 to 3 bytes represent a full movement in UCI form like a2a4, which would be the bytes 8 and 24. Or a promotion like a2a1Q like which would be the bytes 8, 0 and 1. 
 
 
-#### Run it yourself
+### Run it yourself
 
 Check it here: https://github.com/sgatu/chezz
