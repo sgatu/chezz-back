@@ -41,7 +41,10 @@ The gameState is serialized in binary following the next schema (first column ar
 - byte at 1 -> Checked player -> 0 - WHITE PLAYER, 1 - BLACK PLAYER, 2 - NO PLAYER
 - byte at 2 -> Is game in checkMate -> 0 - No, 1 - Yes
 - byte at 3 -> Castle rights -> Single byte with bit flags as following: 
-    &1 - White Queen Side, &2 - White King Side, &4 - Black Queen Side, &8 - Black King side 
+    &1 - White Queen Side
+    &2 - White King Side
+    &4 - Black Queen Side
+    &8 - Black King Side 
 - bytes between [4-67] -> Table positions with values calculated as follows
 
     PIECE_TYPE (1-6) * (IF PIECE_HAS_BEEN_MOVED -> 2 | 1) * (IF PLAYER IS BLACK -> 2 | 1)
