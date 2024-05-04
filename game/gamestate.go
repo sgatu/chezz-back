@@ -619,23 +619,13 @@ func FromSerialized(serializedData []byte) (*GameState, error) {
 	readingMoves := false
 	pieceFromByte := func(b byte) *Piece {
 		player := WHITE_PLAYER
-		hasBeenMoved := false
-		bCopy := b
-		if b > 12 {
+		if b&8 == 8 {
 			player = BLACK_PLAYER
-			bCopy -= 12
 		}
-
-		if bCopy > 6 {
-			hasBeenMoved = true
-			bCopy -= 6
-			if bCopy > 6 {
-				return nil
-			}
-		}
-
+		hasBeenMoved := (b & 16) == 16
+		b = (b & 7)
 		return &Piece{
-			PieceType:    PIECE_TYPE(bCopy),
+			PieceType:    PIECE_TYPE(b),
 			Player:       player,
 			HasBeenMoved: hasBeenMoved,
 		}
@@ -743,10 +733,10 @@ func (gs *GameState) Serialize() ([]byte, error) {
 		}
 		typeB := p.PieceType
 		if p.Player == BLACK_PLAYER {
-			typeB += 12
+			typeB |= 8
 		}
 		if p.HasBeenMoved {
-			typeB += 6
+			typeB |= 16
 		}
 		return byte(typeB)
 	}

@@ -79,6 +79,22 @@ v.   If the piece was moved subtract from the value 6
 vi.  The remaining value should be between 1-6 and we can map the PIECE_TYPE as shown in the list before.
 ```
 
+##### 0 - 6 are pieces types
+```
+0. NO PIECE
+1. PAWN
+2. BISHOP
+3. KNIGHT
+4. ROOK
+5. QUEEN
+6. KING
+```
+##### PLAYER TYPES ARE THE FOLLOWING
+```
+0. WHITE PLAYER
+1. BLACK PLAYER
+2. UNKNOWN PLAYER (or no player)
+```
 
 ### Other serialized data inside the structure (bytes 67-)
 
