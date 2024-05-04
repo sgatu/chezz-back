@@ -60,25 +60,27 @@ The gameState is serialized in binary following the next schema (first column ar
       4 -> R (Rook Promotion)
 ```
 
+
+
 ### How the board should be deserialized (bytes 4-67)
 
-**i.** You start by checking if the position is 0, then you set the board position to empty(PIECE_TYPE 0, PLAYER ID 2)
-
+```
+**i.** You start by checking if the position is 0, then you set the board position to empty (PIECE_TYPE 0, PLAYER ID 2)
 **ii.** If not you check if the value is > 12, if so, the piece belongs to the black player and save that the player is black, else the player is white. 
-
 **iii.** If the player is black, subtract from the value 12
-
 **iv.** If the remaining value is > 6, then it means the piece was moved before, save as moved, if not the moved flag is false.
-
 **v.** If the piece was moved subtract from the value 6
-
 **vi.** The remaining value should be between 1-6 and you can interpret the PIECE_TYPE from it as shown in the list before.
+```
+
 
 ### Other serialized data inside the structure (bytes 67-)
 
 Past 67 bytes you'll find the pieces removed from the board, the format is the same, you read byte by byte until you find a 0 byte which marks the end of the list of removed table pieces.
 
 After that 0 byte what follows is the history of the match, this has a dynamic length, and each 2 to 3 bytes represent a start and end position on the table between 0-63 and optionally a tag. 
+
+```
 0 -> a1
 1 -> a2
 2 -> a3
@@ -86,12 +88,15 @@ After that 0 byte what follows is the history of the match, this has a dynamic l
 .
 .
 63 -> f8
+```
 
 If the second byte, the end position first bit is set to 1 then it means the movement has a tag, for now only promotion are marked.
 
-If so you must unset the first bit on the end position to get the real end position, and after that read a third byte which will define the tag. Tags are described above (1 - "Q", 2 - "N", 3 - "B", 4 - "R")
+If so you must unset the first bit on the end position to get the real end position, and after that read a third byte which will define the tag. 
+Tags are described above (1 - "Q", 2 - "N", 3 - "B", 4 - "R")
 
 So each 2 to 3 bytes represent a full movement in UCI form like a2a4, which would be the bytes 8 and 24. Or a promotion like a2a1Q like which would be the bytes 8, 0 and 1. 
+
 
 
 ### Run it yourself
