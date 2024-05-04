@@ -666,11 +666,10 @@ func FromSerialized(serializedData []byte) (*GameState, error) {
 	// used to recover moves
 	historyMovement := [3]byte{}
 	idx := 0
+
 	for i, b := range serializedData {
 		if i == 0 {
-			if b == 1 {
-				playerTurn = BLACK_PLAYER
-			}
+			playerTurn = PLAYER(b)
 			continue
 		}
 		if i == 1 {
@@ -842,28 +841,22 @@ func (gs *GameState) UpdateGameState(uciAction string) (*MoveResult, error) {
 			ErrCode: "CHECKMATE",
 		}
 	}
-	// control make no sense, action.who is populated from gs.playerTurn, this will never fail
-	// if action.who != gs.playerTurn {
-	// 	return &InvalidMoveError{
-	// 		message: "Not your turn",
-	// 		code:    "INVALID_TURN_MOVE",
-	// 	}
-	// }
+
 	if gs.table[action.posStart] == nil || gs.table[action.posStart].Player != action.who {
 		return nil, &errors.InvalidMoveError{
 			Message: "No piece selected or piece not owned",
 			ErrCode: "INVALID_PIECE_SELECTED",
 		}
 	}
+	// check if the end poisition is not already used by another piece
 	if gs.table[action.posEnd] != nil &&
-		gs.table[action.posEnd].Player == action.who &&
-		gs.table[action.posEnd].PieceType != ROOK &&
-		gs.table[action.posStart].PieceType != KING {
+		gs.table[action.posEnd].Player == action.who {
 		return nil, &errors.InvalidMoveError{
 			Message: "Move position invalid, already occupied by another piece",
 			ErrCode: "INVALID_POSITION",
 		}
 	}
+
 	if action.posStart == action.posEnd {
 		return nil, &errors.InvalidMoveError{
 			Message: "No move made",
