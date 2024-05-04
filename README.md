@@ -34,16 +34,32 @@ make build
 
 ### Serialized Data Structure
 
-The gameState is serialized in binary following the next schema:
+The gameState is serialized in binary following the next schema (first column are byte positions):
 0 -> Player turn -> 0 - WHITE PLAYER, 1 - BLACK PLAYER
 1 -> Checked player -> 0 - WHITE PLAYER, 1 - BLACK PLAYER, 2 - NO PLAYER
 2 -> Is game in checkMate -> 0 - No, 1 - Yes
 3 -> Castle rights -> Single byte with bit flags as following: &1 - White Queen Side, &2 - White King Side, &4 - Black Queen Side, &8 - Black King side 
-[4-68] -> Table positions with values calculated as follows
-```PIECE_TYPE (1-6) * (IF PIECE_HAS_BEEN_MOVED -> 2 | 1) * (IF PLAYER IS BLACK -> 2 | 1)```
+[4-67] -> Table positions with values calculated as follows
+```
+PIECE_TYPE (1-6) * (IF PIECE_HAS_BEEN_MOVED -> 2 | 1) * (IF PLAYER IS BLACK -> 2 | 1)
+```
 OR
-``` 0 IF SPACE IS EMPTY ```
+```
+0 IF SPACE IS Empty
+```
+[68...until we find a 0 byte] -> Captured pieces, deserialized as above
+  
+[pos after 0...till the end of stream] -> UCI movements history. Each movement has a length of 2 to 3 bytes and is serialized as follows:
 
+```
+0 -> Start position
+1 -> End position
+2 -> (Optional) if end position > 128(or last bit flag is set as 1). Unset the first bit on endPosition to obtain the real one(or decrease by 128). Values:
+  1 -> Q (Queen promotion)
+  2 -> N (Knight promotion)
+  3 -> B (Bishop promotion)
+  4 -> R (Rook Promotion)
+```
 ##### What this means is values are as following: 
 * 0 -> Empty board space
 * 1-12 -> White player pieces, where

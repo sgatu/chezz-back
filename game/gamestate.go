@@ -640,18 +640,42 @@ func FromSerialized(serializedData []byte) (*GameState, error) {
 			HasBeenMoved: hasBeenMoved,
 		}
 	}
-	bytesToMove := func(startPos byte, endPos byte) (string, error) {
-		startCol, startRow, errStart := posToCoords(int(startPos))
-		endCol, endRow, errEnd := posToCoords(int(endPos))
+	tagFromByte := func(b byte) string {
+		switch b {
+		case 1:
+			return "Q"
+		case 2:
+			return "N"
+		case 3:
+			return "B"
+		case 4:
+			return "R"
+		default:
+			return ""
+		}
+	}
+	hasTag := func(b byte) (bool, byte) {
+		hasTag := false
+		if b&128 == 128 {
+			hasTag = true
+			b &= 127
+		}
+		return hasTag, b
+	}
+	bytesToMove := func(movement [3]byte) (string, error) {
+		startCol, startRow, errStart := posToCoords(int(movement[0]))
+		endCol, endRow, errEnd := posToCoords(int(movement[1]))
+
+		tag := tagFromByte(movement[2])
 		if errStart == nil && errEnd == nil {
-			return fmt.Sprintf("%c%d%c%d", startCol, startRow, endCol, endRow), nil
+			return fmt.Sprintf("%c%d%c%d%s", startCol, startRow, endCol, endRow, tag), nil
 		}
 		return "", fmt.Errorf("could not convert bytes")
 	}
 	var castleRights CastleRights
 	// used to recover moves
-	startPos := byte(255)
-	endPos := byte(255)
+	historyMovement := [3]byte{}
+	idx := 0
 	for i, b := range serializedData {
 		if i == 0 {
 			if b == 1 {
@@ -681,15 +705,22 @@ func FromSerialized(serializedData []byte) (*GameState, error) {
 			} else if b != 0 && !readingMoves {
 				outPieces = append(outPieces, *pieceFromByte(b))
 			} else {
-				if startPos == 255 {
-					startPos = b
-				} else {
-					endPos = b
-					move, errMove := bytesToMove(startPos, endPos)
+				if idx == 1 {
+					if hasTag, b := hasTag(b); hasTag {
+						historyMovement[idx] = b
+						idx++
+						continue
+					}
+				}
+				historyMovement[idx] = b
+				idx++
+				if idx >= 2 {
+					move, errMove := bytesToMove(historyMovement)
+					historyMovement[2] = 0
+					idx = 0
 					if errMove == nil {
 						moves = append(moves, move)
 					}
-					startPos = 255
 				}
 			}
 		}
@@ -719,6 +750,20 @@ func (gs *GameState) Serialize() ([]byte, error) {
 		}
 		return byte(typeB)
 	}
+	promotionCharToByte := func(c rune) byte {
+		switch c {
+		case 'Q':
+			return 1
+		case 'N':
+			return 2
+		case 'B':
+			return 3
+		case 'R':
+			return 4
+		default:
+			return 0
+		}
+	}
 	returnBytes := make([]byte, 0, 68)
 	pieceBytes := make([]byte, 0, 64)
 	for _, p := range gs.table {
@@ -741,8 +786,16 @@ func (gs *GameState) Serialize() ([]byte, error) {
 	for _, move := range gs.moves {
 		start, errStart := coordsToPos(rune(move[0]), int(move[1]-'0'))
 		end, errEnd := coordsToPos(rune(move[2]), int(move[3]-'0'))
+		promotion := byte(0)
+		if len(move) == 5 {
+			promotion = promotionCharToByte(rune(move[4]))
+			end |= 128
+		}
 		if errStart == nil && errEnd == nil {
 			returnBytes = append(returnBytes, byte(start), byte(end))
+		}
+		if promotion > 0 {
+			returnBytes = append(returnBytes, promotion)
 		}
 	}
 	return returnBytes, nil
