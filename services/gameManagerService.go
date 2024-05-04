@@ -101,11 +101,9 @@ func (lgs *LiveGameState) ExecuteMove(move MoveMessage) {
 func (lgs *LiveGameState) startAwaitingMoves() {
 	go func() {
 		for move := range lgs.chCommandsChannel {
-			fmt.Printf("Received move: %+v\n", move)
 			result, err := lgs.game.UpdateGame(move.Who, move.Move)
 			if err == nil {
 				lgs.notifyMoveObservers(result)
-				fmt.Printf("Saving game")
 				lgs.gameManager.gameRepository.SaveGame(lgs.game)
 			} else {
 				fmt.Println("Could not execute move due to ", err)

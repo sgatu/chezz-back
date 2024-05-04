@@ -34,7 +34,6 @@ func (ph *PlayHandler) Play(c *gin.Context) {
 		handlers_messages.PushGameNotFoundMessage(c, idParam)
 		return
 	}
-	fmt.Printf("session found %+v\n", session)
 	gameEntity, err := ph.gameRepository.GetGame(id)
 	if err != nil {
 		handlers_messages.PushGameNotFoundMessage(c, idParam)
@@ -45,12 +44,10 @@ func (ph *PlayHandler) Play(c *gin.Context) {
 	if gameEntity.BlackPlayer() != session.UserId && gameEntity.WhitePlayer() != session.UserId {
 		if gameEntity.BlackPlayer() == 0 {
 			requiresUpdate = true
-			fmt.Printf("Setting black player to %+v\n", session.UserId)
 			gameEntity.SetBlackPlayer(session.UserId)
 		}
 		if gameEntity.WhitePlayer() == 0 {
 			requiresUpdate = true
-			fmt.Printf("Setting white player to %+v\n", session.UserId)
 			gameEntity.SetWhitePlayer(session.UserId)
 		}
 		ph.gameRepository.SaveGame(gameEntity)
@@ -66,6 +63,15 @@ func (ph *PlayHandler) Play(c *gin.Context) {
 		return
 	}
 
+	getRelation := func(g *models.Game) string {
+		relation := "observer"
+		if g.BlackPlayer() == session.UserId {
+			relation = "black"
+		} else if g.WhitePlayer() == session.UserId {
+			relation = "white"
+		}
+		return relation
+	}
 	go func(playerId int64) {
 		observeChan := make(chan *game.MoveResult)
 		errorCh := make(chan error)
@@ -77,12 +83,7 @@ func (ph *PlayHandler) Play(c *gin.Context) {
 		defer conn.Close()
 		defer liveGameState.RemoveObserver(observeChan)
 		aux := atomic.Uint32{}
-		relation := "observer"
-		if gameEntity.BlackPlayer() == session.UserId {
-			relation = "black"
-		} else if gameEntity.WhitePlayer() == session.UserId {
-			relation = "white"
-		}
+		relation := getRelation(gameEntity)
 		initMessage, err := json.Marshal(struct {
 			Type     string `json:"type"`
 			Relation string `json:"relation"`
@@ -96,16 +97,14 @@ func (ph *PlayHandler) Play(c *gin.Context) {
 			case <-ticker.C:
 				conn.SetReadDeadline(time.Now().Add(time.Millisecond * 500))
 				message, err := wsutil.ReadClientMessage(conn, nil)
-				if err != nil || len(message[len(message)-1].Payload) == 0 {
-					if err == nil && message[len(message)-1].OpCode == ws.OpClose {
-						fmt.Printf("client closed connection\n")
-						// client closed the connection
-						return
-					}
-					// fmt.Printf("No message received...%+v - %+v\n", err, message)
+				if err == nil && len(message) > 0 && message[len(message)-1].OpCode == ws.OpClose {
+					// client closed connection
+					return
+				}
+				if err != nil {
+					fmt.Println(err)
 					continue
 				}
-				fmt.Println("New message", string(message[len(message)-1].Payload))
 				liveGameState.ExecuteMove(services.MoveMessage{Move: string(message[len(message)-1].Payload), ErrorsChannel: errorCh, Who: playerId})
 				newVal := aux.Add(1)
 				if newVal == 100 {
@@ -125,7 +124,6 @@ func (ph *PlayHandler) Play(c *gin.Context) {
 				err = wsutil.WriteServerMessage(conn, ws.OpText, []byte(outputMessage))
 				if err == nil {
 					fmt.Println("Got movement, sent to player", move)
-					//					return
 				}
 			case error := <-errorCh:
 				if ferr, ok := error.(*errors.InvalidMoveError); ok {
