@@ -102,9 +102,7 @@ After that 0 byte what follows is the history of the match, this has a dynamic l
 0 -> a1
 1 -> a2
 2 -> a3
-.
-.
-.
+...
 63 -> f8
 ```
 
@@ -116,7 +114,10 @@ Tags are described above (1 - "Q", 2 - "N", 3 - "B", 4 - "R")
 So each 2 to 3 bytes represent a full movement in UCI form like a2a4, which would be the bytes 8 and 24. Or a promotion like a2a1Q like which would be the bytes 8, 0 and 1. 
 
 
+### Front-end
+
+Check it here: [ChezzFront](https://github.com/sgatu/chezz-front)
 
 ### Run it yourself
 
-Check it here: https://github.com/sgatu/chezz
+Check it here: [Chezz](https://github.com/sgatu/chezz)
