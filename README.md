@@ -47,6 +47,33 @@ OR
 ```
 0 IF SPACE IS Empty
 ```
+##### Board positions values are as following: 
+```
+0 -> Empty board space
+1-12 -> White player pieces, where
+  1-6 never moved pieces
+  7-12 moved pieces
+13-24 -> Black player pieces, where
+  13-18 never moved pieces
+  19-24 moved pieces
+```
+
+##### 1 - 6 are pieces types
+
+0. NO PIECE
+1. PAWN
+2. BISHOP
+3. KNIGHT
+4. ROOK
+5. QUEEN
+6. KING
+
+##### PLAYER TYPES ARE THE FOLLOWING
+0. WHITE PLAYER
+1. BLACK PLAYER
+2. UNKNOWN PLAYER (or no player)
+
+```
 [68...until we find a 0 byte] -> Captured pieces, deserialized as above
   
 [pos after 0...till the end of stream] -> UCI movements history. Each movement has a length of 2 to 3 bytes and is serialized as follows:
@@ -60,29 +87,6 @@ OR
   3 -> B (Bishop promotion)
   4 -> R (Rook Promotion)
 ```
-##### What this means is values are as following: 
-* 0 -> Empty board space
-* 1-12 -> White player pieces, where
-  * 1-6 never moved pieces
-  * 7-12 moved pieces
-* 13-24 -> Black player pieces, where
-  * 13-18 never moved pieces
-  * 19-24 moved pieces
-
-
-##### 1 - 6 are pieces types
-0. NO PIECE
-1. PAWN
-2. BISHOP
-3. KNIGHT
-4. ROOK
-5. QUEEN
-6. KING
-
-##### PLAYER TYPES ARE THE FOLLOWING
-0. WHITE PLAYER
-1. BLACK PLAYER
-2. UNKNOWN PLAYER (or no player)
 
 ##### How the board should be deserialized
 
