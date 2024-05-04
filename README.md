@@ -65,12 +65,12 @@ The gameState is serialized in binary following the next schema (first column ar
 ### How the board should be deserialized (bytes 4-67)
 
 ```
-**i.** You start by checking if the position is 0, then you set the board position to empty (PIECE_TYPE 0, PLAYER ID 2)
-**ii.** If not you check if the value is > 12, if so, the piece belongs to the black player and save that the player is black, else the player is white. 
-**iii.** If the player is black, subtract from the value 12
-**iv.** If the remaining value is > 6, then it means the piece was moved before, save as moved, if not the moved flag is false.
-**v.** If the piece was moved subtract from the value 6
-**vi.** The remaining value should be between 1-6 and you can interpret the PIECE_TYPE from it as shown in the list before.
+i.   You start by checking if the position is 0, then you set the board position to empty (PIECE_TYPE 0, PLAYER ID 2)
+ii.  If not you check if the value is > 12, if so, the piece belongs to the black player and save that the player is black, else the player is white. 
+iii. If the player is black, subtract from the value 12
+iv.  If the remaining value is > 6, then it means the piece was moved before, save as moved, if not the moved flag is false.
+v.   If the piece was moved subtract from the value 6
+vi.  The remaining value should be between 1-6 and you can interpret the PIECE_TYPE from it as shown in the list before.
 ```
 
 
