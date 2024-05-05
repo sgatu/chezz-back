@@ -102,7 +102,7 @@ func (ph *PlayHandler) Play(c *gin.Context) {
 					return
 				}
 				if err != nil {
-					fmt.Println(err)
+					// fmt.Println(err)
 					continue
 				}
 				liveGameState.ExecuteMove(services.MoveMessage{Move: string(message[len(message)-1].Payload), ErrorsChannel: errorCh, Who: playerId})
