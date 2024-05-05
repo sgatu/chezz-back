@@ -236,7 +236,7 @@ func (gs *GameState) getPawnMovements(pos int, who PLAYER) []int {
 	rightPos := pos + (7 * directionMultiplier)
 	leftPos := pos + (9 * directionMultiplier)
 
-	if !posInRange(rightPos) || !posInRange(leftPos) {
+	if !posInRange(rightPos) && !posInRange(leftPos) {
 		return allowedMovePositions
 	}
 	columnRight := rightPos % 8
@@ -246,12 +246,12 @@ func (gs *GameState) getPawnMovements(pos int, who PLAYER) []int {
 	 * first: check if column left or right is 1 step away(if movement leads to jump from one side of the table to another it is invalid)
 	 * second: check if the new position has a enemy piece
 	 */
-	if math.Abs(float64(currentColumn-columnRight)) == 1 &&
+	if posInRange(rightPos) && math.Abs(float64(currentColumn-columnRight)) == 1 &&
 		gs.table[rightPos] != nil &&
 		gs.table[rightPos].Player == expectedEatColor {
 		allowedMovePositions = append(allowedMovePositions, rightPos)
 	}
-	if math.Abs(float64(currentColumn-columnLeft)) == 1 && gs.table[leftPos] != nil && gs.table[leftPos].Player == expectedEatColor {
+	if posInRange(leftPos) && math.Abs(float64(currentColumn-columnLeft)) == 1 && gs.table[leftPos] != nil && gs.table[leftPos].Player == expectedEatColor {
 		allowedMovePositions = append(allowedMovePositions, leftPos)
 	}
 	return allowedMovePositions
