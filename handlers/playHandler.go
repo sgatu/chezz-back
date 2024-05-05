@@ -92,20 +92,34 @@ func (ph *PlayHandler) Play(c *gin.Context) {
 			return
 		}
 		wsutil.WriteServerMessage(conn, ws.OpText, []byte(initMessage))
+		timePassed := 0
 		for {
 			select {
 			case <-ticker.C:
 				conn.SetReadDeadline(time.Now().Add(time.Millisecond * 500))
+				timePassed++
 				message, err := wsutil.ReadClientMessage(conn, nil)
-				if err == nil && len(message) > 0 && message[len(message)-1].OpCode == ws.OpClose {
+				var lastMessage *wsutil.Message = nil
+				if len(message) > 0 {
+					lastMessage = &message[len(message)-1]
+				}
+				if err == nil && lastMessage != nil && lastMessage.OpCode == ws.OpClose {
 					// client closed connection
 					return
+				}
+				if lastMessage != nil && lastMessage.OpCode == ws.OpPong {
+					continue
+				}
+				// ping every 3 seconds
+				if timePassed > 5 {
+					timePassed = 0
+					conn.Write(ws.CompiledPing)
 				}
 				if err != nil {
 					// fmt.Println(err)
 					continue
 				}
-				liveGameState.ExecuteMove(services.MoveMessage{Move: string(message[len(message)-1].Payload), ErrorsChannel: errorCh, Who: playerId})
+				liveGameState.ExecuteMove(services.MoveMessage{Move: string(lastMessage.Payload), ErrorsChannel: errorCh, Who: playerId})
 				newVal := aux.Add(1)
 				if newVal == 100 {
 					return
