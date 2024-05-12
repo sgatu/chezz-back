@@ -133,18 +133,19 @@ func (ph *PlayHandler) Play(c *gin.Context) {
 					mateStatusStr = "-"
 				}
 				outputMessage, err := json.Marshal(struct {
-					Type          string `json:"type"`
-					Move          string `json:"uci"`
-					MateStatus    string `json:"mateStatus"`
-					CheckedPlayer int    `json:"checkedPlayer"`
-				}{Type: "move", Move: move.Move, CheckedPlayer: int(move.CheckedPlayer), MateStatus: mateStatusStr})
+					Type             string `json:"type"`
+					Move             string `json:"uci"`
+					MateStatus       string `json:"mateStatus"`
+					EnPassantCapture string `json:"enPassantCapture"`
+					CheckedPlayer    int    `json:"checkedPlayer"`
+				}{Type: "move", Move: move.Move, CheckedPlayer: int(move.CheckedPlayer), MateStatus: mateStatusStr, EnPassantCapture: move.EnPassantCapture})
 				if err != nil {
 					fmt.Println("Could not serialize movement")
 					return
 				}
 				err = wsutil.WriteServerMessage(conn, ws.OpText, []byte(outputMessage))
 				if err == nil {
-					fmt.Println("Got movement, sent to player", move)
+					fmt.Printf("Got movement, sent to player %+v\n", move)
 				}
 			case error := <-errorCh:
 				if ferr, ok := error.(*errors.InvalidMoveError); ok {

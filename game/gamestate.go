@@ -41,9 +41,10 @@ type DirectionVector struct {
 	y int
 }
 type MoveResult struct {
-	Move          string
-	CheckedPlayer PLAYER
-	MateStatus    GameStateStatus
+	Move             string
+	EnPassantCapture string
+	CheckedPlayer    PLAYER
+	MateStatus       GameStateStatus
 }
 
 func newPiece(_type PIECE_TYPE, player PLAYER, hasBeenMoved bool) *Piece {
@@ -111,13 +112,14 @@ const (
 )
 
 type GameState struct {
-	table         [64]*Piece
-	moves         []string
-	outTable      []Piece
-	playerTurn    PLAYER
-	checkedPlayer PLAYER
-	gameStatus    GameStateStatus
-	castleRights  CastleRights
+	table            [64]*Piece
+	moves            []string
+	outTable         []Piece
+	playerTurn       PLAYER
+	checkedPlayer    PLAYER
+	gameStatus       GameStateStatus
+	lastMoveIsAPJump bool
+	castleRights     CastleRights
 }
 
 type Action struct {
@@ -159,7 +161,7 @@ func bishopDirections() []DirectionVector {
 	}
 }
 
-var regexpUCI = regexp.MustCompile(`^([a-h][1-8])([a-h][1-8])([nbrqNBRQ]?)$`)
+var regexpUCI = regexp.MustCompile(`^([a-h][1-8])([a-h][1-8])([nbrqNBRQ]?|(e\.p)?)$`)
 
 func coordsToPos(letter rune, pos int) (int, error) {
 	p := (pos-1)*8 + strings.IndexRune("abcdefgh", letter)
@@ -228,6 +230,25 @@ func posInRange(pos int) bool {
 	return pos >= 0 && pos < 64
 }
 
+func (gs *GameState) isEnPassantMovement(startPos int, endPos int, who PLAYER) bool {
+	if !gs.lastMoveIsAPJump || len(gs.moves) == 0 {
+		return false
+	}
+	directionMultiplier := getDirection(startPos, endPos)
+	enPassantRightPos := startPos + (-1 * directionMultiplier)
+	enPassantLeftPos := startPos + (1 * directionMultiplier)
+	checkPos := enPassantLeftPos
+	moveDiff := math.Abs(float64(endPos - startPos))
+	if moveDiff < 8 {
+		checkPos = enPassantRightPos
+	}
+	lastAction, _ := gs.uci2Action(gs.moves[len(gs.moves)-1])
+	if lastAction.posEnd != checkPos {
+		return false
+	}
+	return (gs.table[checkPos] != nil && gs.table[checkPos].PieceType == PAWN && gs.table[checkPos].Player == gs.getOppositePlayer(who))
+}
+
 func (gs *GameState) getPawnMovements(pos int, who PLAYER) []int {
 	directionMultiplier := 1
 	expectedEatColor := WHITE_PLAYER
@@ -258,17 +279,26 @@ func (gs *GameState) getPawnMovements(pos int, who PLAYER) []int {
 	columnLeft := leftPos % 8
 	currentColumn := pos % 8
 	/* check for eating movements
-	 * first: check if column left or right is 1 step away(if movement leads to jump from one side of the table to another it is invalid)
-	 * second: check if the new position has a enemy piece
-	 */
-	if posInRange(rightPos) && math.Abs(float64(currentColumn-columnRight)) == 1 &&
-		gs.table[rightPos] != nil &&
-		gs.table[rightPos].Player == expectedEatColor {
-		allowedMovePositions = append(allowedMovePositions, rightPos)
+		 * first: check if column left or right is 1 step away(if movement leads to jump from one side of the table to another it is invalid)
+		 * second: check if the new position has a enemy piece if so, it's allowed to capture it
+	   *  else if there is an enemy pawn next to my pawn that hast just jumped, we are allowed to capture it too
+	   * same check for both columns
+	*/
+	if posInRange(rightPos) && math.Abs(float64(currentColumn-columnRight)) == 1 {
+		if gs.table[rightPos] != nil && gs.table[rightPos].Player == expectedEatColor {
+			allowedMovePositions = append(allowedMovePositions, rightPos)
+		} else if gs.isEnPassantMovement(pos, rightPos, who) {
+			allowedMovePositions = append(allowedMovePositions, rightPos)
+		}
 	}
-	if posInRange(leftPos) && math.Abs(float64(currentColumn-columnLeft)) == 1 && gs.table[leftPos] != nil && gs.table[leftPos].Player == expectedEatColor {
-		allowedMovePositions = append(allowedMovePositions, leftPos)
+	if posInRange(leftPos) && math.Abs(float64(currentColumn-columnLeft)) == 1 {
+		if gs.table[leftPos] != nil && gs.table[leftPos].Player == expectedEatColor {
+			allowedMovePositions = append(allowedMovePositions, leftPos)
+		} else if gs.isEnPassantMovement(pos, leftPos, who) {
+			allowedMovePositions = append(allowedMovePositions, leftPos)
+		}
 	}
+
 	return allowedMovePositions
 }
 
@@ -444,7 +474,6 @@ func (gs *GameState) processKnightMovement(action *Action) error {
 }
 
 func (gs *GameState) processPawnMovement(action *Action) error {
-	fmt.Printf("Processing pawn movement %+v\n", action)
 	allowedMovePositions := gs.getPawnMovements(action.posStart, action.who)
 	if !slices.Contains(allowedMovePositions, action.posEnd) {
 		return &errors.InvalidMoveError{
@@ -460,7 +489,6 @@ func (gs *GameState) processPawnMovement(action *Action) error {
 				ErrCode: "MOVE_MISSING_PROMOTION",
 			}
 		}
-		fmt.Printf("Promoting pawn to %+v\n", action.promotion)
 		gs.table[action.posEnd] = newPiece(action.promotion, action.who, true)
 		gs.table[action.posStart] = nil
 		return nil
@@ -494,7 +522,6 @@ func (gs *GameState) isCastlingMovement(action *Action) (bool, int, int) {
 		if direction < 0 {
 			rookStart -= 1
 		}
-		fmt.Printf("It's castling timeee, RookStart %+v, RookEnd: %+v, KingStart: %+v, KingEnd: %+v\n", rookStart, rookEnd, action.posStart, action.posEnd)
 		return isCastling, rookStart, rookEnd
 	}
 	return false, 0, 0
@@ -528,6 +555,18 @@ func (gs *GameState) updateCastleRights(action *Action) {
 	}
 }
 
+func boolToInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
+}
+
+func getDirection(startPos int, endPos int) int {
+	sign := boolToInt(math.Signbit(float64(startPos - endPos)))
+	return int(2*sign - 1)
+}
+
 func (gs *GameState) applyAction(action *Action, allowedMovePositions []int) error {
 	if !slices.Contains(allowedMovePositions, action.posEnd) {
 		return &errors.InvalidMoveError{
@@ -542,6 +581,11 @@ func (gs *GameState) applyAction(action *Action, allowedMovePositions []int) err
 		gs.table[rookEnd] = gs.table[rookStart]
 		gs.table[rookEnd].HasBeenMoved = true
 		gs.table[rookStart] = nil
+	}
+	if gs.isEnPassantMovement(action.posStart, action.posEnd, action.who) {
+		direction := getDirection(action.posStart, action.posEnd)
+		gs.outTable = append(gs.outTable, *gs.table[action.posEnd-(direction*8)])
+		gs.table[action.posEnd-(direction*8)] = nil
 	}
 	gs.table[action.posEnd] = gs.table[action.posStart]
 	gs.table[action.posStart] = nil
@@ -609,12 +653,13 @@ func NewGameState() *GameState {
 	}
 
 	return &GameState{
-		playerTurn:    WHITE_PLAYER,
-		table:         table,
-		outTable:      []Piece{},
-		gameStatus:    STATUS_PLAYING,
-		checkedPlayer: UNKNOWN_PLAYER,
-		moves:         []string{},
+		playerTurn:       WHITE_PLAYER,
+		table:            table,
+		outTable:         []Piece{},
+		gameStatus:       STATUS_PLAYING,
+		checkedPlayer:    UNKNOWN_PLAYER,
+		moves:            []string{},
+		lastMoveIsAPJump: false,
 		castleRights: CastleRights{
 			whiteQueenSide: true,
 			blackQueenSide: true,
@@ -655,6 +700,8 @@ func FromSerialized(serializedData []byte) (*GameState, error) {
 			return "B"
 		case 4:
 			return "R"
+		case 5:
+			return "e.p"
 		default:
 			return ""
 		}
@@ -678,12 +725,17 @@ func FromSerialized(serializedData []byte) (*GameState, error) {
 		return "", fmt.Errorf("could not convert bytes")
 	}
 	var castleRights CastleRights
+	lastMoveIsAPJump := false
 	// used to recover moves
 	historyMovement := [3]byte{}
 	idx := 0
 
 	for i, b := range serializedData {
 		if i == 0 {
+			if b&4 == 4 {
+				lastMoveIsAPJump = true
+				b &= 3
+			}
 			playerTurn = PLAYER(b)
 			continue
 		}
@@ -730,13 +782,14 @@ func FromSerialized(serializedData []byte) (*GameState, error) {
 		}
 	}
 	return &GameState{
-		playerTurn:    playerTurn,
-		table:         table,
-		outTable:      outPieces,
-		moves:         moves,
-		checkedPlayer: checkedPlayer,
-		gameStatus:    gameStatus,
-		castleRights:  castleRights,
+		playerTurn:       playerTurn,
+		table:            table,
+		outTable:         outPieces,
+		moves:            moves,
+		checkedPlayer:    checkedPlayer,
+		gameStatus:       gameStatus,
+		castleRights:     castleRights,
+		lastMoveIsAPJump: lastMoveIsAPJump,
 	}, nil
 }
 
@@ -773,8 +826,11 @@ func (gs *GameState) Serialize() ([]byte, error) {
 	for _, p := range gs.table {
 		pieceBytes = append(pieceBytes, pieceToByte(p))
 	}
-
-	returnBytes = append(returnBytes, byte(gs.playerTurn))
+	encodedPlayerTurn := byte(gs.playerTurn)
+	if gs.lastMoveIsAPJump {
+		encodedPlayerTurn |= 4
+	}
+	returnBytes = append(returnBytes, encodedPlayerTurn)
 	returnBytes = append(returnBytes, byte(gs.checkedPlayer))
 	returnBytes = append(returnBytes, byte(gs.gameStatus))
 	returnBytes = append(returnBytes, gs.castleRights.Serialize())
@@ -786,16 +842,20 @@ func (gs *GameState) Serialize() ([]byte, error) {
 	for _, move := range gs.moves {
 		start, errStart := coordsToPos(rune(move[0]), int(move[1]-'0'))
 		end, errEnd := coordsToPos(rune(move[2]), int(move[3]-'0'))
-		promotion := byte(0)
+		tag := byte(0)
 		if len(move) == 5 {
-			promotion = promotionCharToByte(rune(move[4]))
+			tag = promotionCharToByte(rune(move[4]))
+			end |= 128
+		}
+		if len(move) == 7 && strings.HasSuffix(move, "e.p") {
+			tag = 5
 			end |= 128
 		}
 		if errStart == nil && errEnd == nil {
 			returnBytes = append(returnBytes, byte(start), byte(end))
 		}
-		if promotion > 0 {
-			returnBytes = append(returnBytes, promotion)
+		if tag > 0 {
+			returnBytes = append(returnBytes, tag)
 		}
 	}
 	return returnBytes, nil
@@ -884,6 +944,11 @@ func (gs *GameState) UpdateGameState(uciAction string) (*MoveResult, error) {
 			ErrCode: "NO_MOVE",
 		}
 	}
+
+	isPawnJump := int32(math.Abs(float64(action.posStart-action.posEnd))) == 16 &&
+		!gs.table[action.posStart].HasBeenMoved &&
+		gs.table[action.posStart].PieceType == PAWN
+	enPassantMovement := gs.isEnPassantMovement(action.posStart, action.posEnd, action.who)
 	beforeState := gs.table
 	var processErr error
 	switch gs.table[action.posStart].PieceType {
@@ -911,7 +976,11 @@ func (gs *GameState) UpdateGameState(uciAction string) (*MoveResult, error) {
 			ErrCode: "MOVE_IN_CHECK",
 		}
 	}
-	gs.moves = append(gs.moves, action.uci)
+	uciMovement := action.uci
+	if enPassantMovement {
+		uciMovement += "e.p"
+	}
+	gs.moves = append(gs.moves, uciMovement)
 	gs.checkedPlayer = UNKNOWN_PLAYER
 	if whiteCheck {
 		gs.checkedPlayer = WHITE_PLAYER
@@ -920,9 +989,17 @@ func (gs *GameState) UpdateGameState(uciAction string) (*MoveResult, error) {
 	}
 	gs.playerTurn = gs.getOppositePlayer(gs.playerTurn)
 	gs.gameStatus = gs.checkIfMate()
+	gs.lastMoveIsAPJump = isPawnJump
+	enPassantCapture := ""
+	if enPassantMovement {
+		direction := getDirection(action.posStart, action.posEnd)
+		letter, number, _ := posToCoords(action.posEnd - (direction * 8))
+		enPassantCapture = fmt.Sprintf("%c%d", letter, number)
+	}
 	return &MoveResult{
-		Move:          uciAction,
-		CheckedPlayer: gs.checkedPlayer,
-		MateStatus:    gs.gameStatus,
+		Move:             uciAction,
+		CheckedPlayer:    gs.checkedPlayer,
+		MateStatus:       gs.gameStatus,
+		EnPassantCapture: enPassantCapture,
 	}, nil
 }

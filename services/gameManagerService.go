@@ -89,7 +89,6 @@ func (lgs *LiveGameState) RemoveObserver(observerCh chan *game.MoveResult) {
 	}
 	if len(lgs.observers) == 0 {
 		close(lgs.chCommandsChannel)
-		fmt.Printf("before removing the livestate %+v, %+v\n", lgs.gameManager, lgs.game.Id())
 		lgs.gameManager.removeLiveGameState(lgs.game.Id())
 	}
 }
