@@ -43,7 +43,7 @@ type DirectionVector struct {
 type MoveResult struct {
 	Move          string
 	CheckedPlayer PLAYER
-	CheckMate     bool
+	MateStatus    GameStateStatus
 }
 
 func newPiece(_type PIECE_TYPE, player PLAYER, hasBeenMoved bool) *Piece {
@@ -102,13 +102,21 @@ func castleRightsFromByte(b byte) CastleRights {
 	return cr
 }
 
+type GameStateStatus int
+
+const (
+	STATUS_PLAYING GameStateStatus = iota
+	STATUS_CHECKMATE
+	STATUS_STALEMATE
+)
+
 type GameState struct {
 	table         [64]*Piece
 	moves         []string
 	outTable      []Piece
 	playerTurn    PLAYER
 	checkedPlayer PLAYER
-	checkMate     bool
+	gameStatus    GameStateStatus
 	castleRights  CastleRights
 }
 
@@ -186,9 +194,13 @@ func getPieceFromQualifier(r byte) PIECE_TYPE {
 	return UNKNOWN_PIECE
 }
 
-func (gs *GameState) checkIfCheckMate() bool {
+func (gs *GameState) checkIfMate() GameStateStatus {
+	newStatus := gs.gameStatus
 	beforeState := gs.table
 	for i := range gs.table {
+		if newStatus != STATUS_PLAYING {
+			break
+		}
 		if gs.table[i] != nil && gs.table[i].Player == gs.playerTurn {
 			moves, _ := gs.getAllAllowedMovements(i, gs.playerTurn)
 			for _, mv := range moves {
@@ -197,16 +209,19 @@ func (gs *GameState) checkIfCheckMate() bool {
 				whiteCheck, blackCheck := gs.checkIfCheck()
 				gs.table = beforeState
 				if gs.playerTurn == WHITE_PLAYER && !whiteCheck {
-					return false
+					return STATUS_PLAYING
 				}
 				if gs.playerTurn == BLACK_PLAYER && !blackCheck {
-					return false
+					return STATUS_PLAYING
 				}
 
 			}
 		}
 	}
-	return true
+	if gs.checkedPlayer != UNKNOWN_PLAYER {
+		return STATUS_CHECKMATE
+	}
+	return STATUS_STALEMATE
 }
 
 func posInRange(pos int) bool {
@@ -597,7 +612,7 @@ func NewGameState() *GameState {
 		playerTurn:    WHITE_PLAYER,
 		table:         table,
 		outTable:      []Piece{},
-		checkMate:     false,
+		gameStatus:    STATUS_PLAYING,
 		checkedPlayer: UNKNOWN_PLAYER,
 		moves:         []string{},
 		castleRights: CastleRights{
@@ -612,7 +627,7 @@ func NewGameState() *GameState {
 func FromSerialized(serializedData []byte) (*GameState, error) {
 	playerTurn := WHITE_PLAYER
 	checkedPlayer := UNKNOWN_PLAYER
-	isCheckMate := false
+	gameStatus := STATUS_PLAYING
 	table := [64]*Piece{}
 	outPieces := []Piece{}
 	moves := []string{}
@@ -677,7 +692,7 @@ func FromSerialized(serializedData []byte) (*GameState, error) {
 			continue
 		}
 		if i == 2 {
-			isCheckMate = b == 1
+			gameStatus = GameStateStatus(b)
 			continue
 		}
 		if i == 3 {
@@ -720,7 +735,7 @@ func FromSerialized(serializedData []byte) (*GameState, error) {
 		outTable:      outPieces,
 		moves:         moves,
 		checkedPlayer: checkedPlayer,
-		checkMate:     isCheckMate,
+		gameStatus:    gameStatus,
 		castleRights:  castleRights,
 	}, nil
 }
@@ -761,11 +776,7 @@ func (gs *GameState) Serialize() ([]byte, error) {
 
 	returnBytes = append(returnBytes, byte(gs.playerTurn))
 	returnBytes = append(returnBytes, byte(gs.checkedPlayer))
-	if gs.checkMate {
-		returnBytes = append(returnBytes, byte(1))
-	} else {
-		returnBytes = append(returnBytes, byte(0))
-	}
+	returnBytes = append(returnBytes, byte(gs.gameStatus))
 	returnBytes = append(returnBytes, gs.castleRights.Serialize())
 	returnBytes = append(returnBytes, pieceBytes...)
 	for _, outPiece := range gs.outTable {
@@ -823,7 +834,11 @@ func (gs *GameState) GetBoardState() [64]*Piece {
 }
 
 func (gs *GameState) InCheckMate() bool {
-	return gs.checkMate
+	return gs.gameStatus == STATUS_CHECKMATE
+}
+
+func (gs *GameState) InStalemate() bool {
+	return gs.gameStatus == STATUS_STALEMATE
 }
 
 func (gs *GameState) GetCheckedPlayer() PLAYER {
@@ -835,10 +850,16 @@ func (gs *GameState) UpdateGameState(uciAction string) (*MoveResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	if gs.checkMate {
+	if gs.gameStatus == STATUS_CHECKMATE {
 		return nil, &errors.InvalidMoveError{
 			Message: "Game in checkmate",
 			ErrCode: "CHECKMATE",
+		}
+	}
+	if gs.gameStatus == STATUS_STALEMATE {
+		return nil, &errors.InvalidMoveError{
+			Message: "Game in stalemate",
+			ErrCode: "STALEMATE",
 		}
 	}
 
@@ -898,12 +919,10 @@ func (gs *GameState) UpdateGameState(uciAction string) (*MoveResult, error) {
 		gs.checkedPlayer = BLACK_PLAYER
 	}
 	gs.playerTurn = gs.getOppositePlayer(gs.playerTurn)
-	if (gs.checkedPlayer != UNKNOWN_PLAYER) && gs.checkIfCheckMate() {
-		gs.checkMate = true
-	}
+	gs.gameStatus = gs.checkIfMate()
 	return &MoveResult{
 		Move:          uciAction,
 		CheckedPlayer: gs.checkedPlayer,
-		CheckMate:     gs.checkMate,
+		MateStatus:    gs.gameStatus,
 	}, nil
 }

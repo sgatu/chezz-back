@@ -125,12 +125,19 @@ func (ph *PlayHandler) Play(c *gin.Context) {
 					return
 				}
 			case move := <-observeChan:
+				mateStatusStr := ""
+				if move.MateStatus == game.STATUS_CHECKMATE {
+					mateStatusStr = "#"
+				}
+				if move.MateStatus == game.STATUS_STALEMATE {
+					mateStatusStr = "-"
+				}
 				outputMessage, err := json.Marshal(struct {
 					Type          string `json:"type"`
 					Move          string `json:"uci"`
+					MateStatus    string `json:"mateStatus"`
 					CheckedPlayer int    `json:"checkedPlayer"`
-					CheckMate     bool   `json:"isMate"`
-				}{Type: "move", Move: move.Move, CheckedPlayer: int(move.CheckedPlayer), CheckMate: move.CheckMate})
+				}{Type: "move", Move: move.Move, CheckedPlayer: int(move.CheckedPlayer), MateStatus: mateStatusStr})
 				if err != nil {
 					fmt.Println("Could not serialize movement")
 					return
