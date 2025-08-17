@@ -251,10 +251,10 @@ func (gs *GameState) isEnPassantMovement(startPos int, endPos int, who PLAYER) b
 
 func (gs *GameState) getPawnMovements(pos int, who PLAYER) []int {
 	directionMultiplier := 1
-	expectedEatColor := WHITE_PLAYER
-	if who == WHITE_PLAYER {
+	expectedEatColor := BLACK_PLAYER
+	if who == BLACK_PLAYER {
 		directionMultiplier = -1
-		expectedEatColor = BLACK_PLAYER
+		expectedEatColor = WHITE_PLAYER
 	}
 	allowedMovePositions := []int{}
 	forwardPos := pos + (8 * directionMultiplier)
@@ -323,16 +323,16 @@ func (gs *GameState) getKingMovements(startPos int, who PLAYER) []int {
 }
 
 func (gs *GameState) getKingCastleRightsMovements(who PLAYER) []int {
-	kingSide := gs.castleRights.blackKingSide
-	queenSide := gs.castleRights.blackQueenSide
+	kingSide := gs.castleRights.whiteKingSide
+	queenSide := gs.castleRights.whiteQueenSide
 	kingFree := []int{5, 6}
 	kingMoveEndPos := 6
 	queenFree := []int{1, 2, 3}
 	queenMoveEndPos := 2
 	allowedMovePositions := []int{}
-	if who == WHITE_PLAYER {
-		kingSide = gs.castleRights.whiteKingSide
-		queenSide = gs.castleRights.whiteQueenSide
+	if who == BLACK_PLAYER {
+		kingSide = gs.castleRights.blackKingSide
+		queenSide = gs.castleRights.blackQueenSide
 		kingFree = []int{62, 61}
 		kingMoveEndPos = 62
 		queenFree = []int{59, 58, 57}
@@ -527,8 +527,23 @@ func (gs *GameState) isCastlingMovement(action *Action) (bool, int, int) {
 	return false, 0, 0
 }
 
-func (gs *GameState) updateCastleRights(action *Action) {
-	if gs.table[action.posEnd].PieceType == KING {
+func (gs *GameState) updateCastleRights(action *Action, moving *Piece, eaten *Piece) {
+	if moving == nil {
+		return
+	}
+	switch moving.PieceType {
+	case ROOK:
+		switch action.posStart {
+		case 0:
+			gs.castleRights.whiteQueenSide = false
+		case 7:
+			gs.castleRights.whiteKingSide = false
+		case 56:
+			gs.castleRights.blackQueenSide = false
+		case 63:
+			gs.castleRights.blackKingSide = false
+		}
+	case KING:
 		if action.who == WHITE_PLAYER {
 			gs.castleRights.whiteKingSide = false
 			gs.castleRights.whiteQueenSide = false
@@ -536,22 +551,18 @@ func (gs *GameState) updateCastleRights(action *Action) {
 			gs.castleRights.blackKingSide = false
 			gs.castleRights.blackQueenSide = false
 		}
-	} else if gs.table[action.posEnd].PieceType == ROOK {
-		if action.posStart == 1 || action.posStart == 56 {
-			if gs.castleRights.whiteQueenSide && action.who == WHITE_PLAYER {
-				gs.castleRights.whiteQueenSide = false
-			} else if gs.castleRights.blackQueenSide && action.who == BLACK_PLAYER {
-				gs.castleRights.blackQueenSide = false
-			}
+	}
+	if eaten != nil && eaten.PieceType == ROOK {
+		switch action.posEnd {
+		case 0:
+			gs.castleRights.whiteQueenSide = false
+		case 7:
+			gs.castleRights.whiteKingSide = false
+		case 56:
+			gs.castleRights.blackQueenSide = false
+		case 63:
+			gs.castleRights.blackKingSide = false
 		}
-		if action.posStart == 7 || action.posStart == 63 {
-			if gs.castleRights.whiteKingSide && action.who == WHITE_PLAYER {
-				gs.castleRights.whiteKingSide = false
-			} else if gs.castleRights.blackKingSide && action.who == BLACK_PLAYER {
-				gs.castleRights.blackKingSide = false
-			}
-		}
-
 	}
 }
 
@@ -574,6 +585,8 @@ func (gs *GameState) applyAction(action *Action, allowedMovePositions []int) err
 			ErrCode: "MOVE_NOT_ALLOWED",
 		}
 	}
+	moving := gs.table[action.posStart]
+	eaten := gs.table[action.posEnd]
 	if gs.table[action.posEnd] != nil {
 		gs.outTable = append(gs.outTable, *gs.table[action.posEnd])
 	}
@@ -590,7 +603,7 @@ func (gs *GameState) applyAction(action *Action, allowedMovePositions []int) err
 	gs.table[action.posEnd] = gs.table[action.posStart]
 	gs.table[action.posStart] = nil
 	gs.table[action.posEnd].HasBeenMoved = true
-	gs.updateCastleRights(action)
+	gs.updateCastleRights(action, moving, eaten)
 	return nil
 }
 
@@ -633,23 +646,23 @@ func NewGameState() *GameState {
 	for i := 0; i < 8; i++ {
 		switch i {
 		case 0, 7:
-			table[i] = newPiece(ROOK, BLACK_PLAYER, false)
-			table[63-i] = newPiece(ROOK, WHITE_PLAYER, false)
+			table[i] = newPiece(ROOK, WHITE_PLAYER, false)
+			table[63-i] = newPiece(ROOK, BLACK_PLAYER, false)
 		case 1, 6:
-			table[i] = newPiece(KNIGHT, BLACK_PLAYER, false)
-			table[63-i] = newPiece(KNIGHT, WHITE_PLAYER, false)
+			table[i] = newPiece(KNIGHT, WHITE_PLAYER, false)
+			table[63-i] = newPiece(KNIGHT, BLACK_PLAYER, false)
 		case 2, 5:
-			table[i] = newPiece(BISHOP, BLACK_PLAYER, false)
-			table[63-i] = newPiece(BISHOP, WHITE_PLAYER, false)
+			table[i] = newPiece(BISHOP, WHITE_PLAYER, false)
+			table[63-i] = newPiece(BISHOP, BLACK_PLAYER, false)
 		case 3:
-			table[i] = newPiece(QUEEN, BLACK_PLAYER, false)
-			table[63-i-1] = newPiece(QUEEN, WHITE_PLAYER, false)
+			table[i] = newPiece(QUEEN, WHITE_PLAYER, false)
+			table[63-i-1] = newPiece(QUEEN, BLACK_PLAYER, false)
 		case 4:
-			table[i] = newPiece(KING, BLACK_PLAYER, false)
-			table[63-i+1] = newPiece(KING, WHITE_PLAYER, false)
+			table[i] = newPiece(KING, WHITE_PLAYER, false)
+			table[63-i+1] = newPiece(KING, BLACK_PLAYER, false)
 		}
-		table[8+i] = newPiece(PAWN, BLACK_PLAYER, false)
-		table[63-8-i] = newPiece(PAWN, WHITE_PLAYER, false)
+		table[8+i] = newPiece(PAWN, WHITE_PLAYER, false)
+		table[63-8-i] = newPiece(PAWN, BLACK_PLAYER, false)
 	}
 
 	return &GameState{
