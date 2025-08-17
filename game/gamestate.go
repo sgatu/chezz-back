@@ -10,6 +10,8 @@ import (
 	"github.com/sgatu/chezz-back/errors"
 )
 
+const PROTOCOL_VERSION = 1
+
 type (
 	PLAYER     int
 	PIECE_TYPE int
@@ -112,6 +114,7 @@ const (
 )
 
 type GameState struct {
+	major_version    int
 	table            [64]*Piece
 	moves            []string
 	outTable         []Piece
@@ -666,6 +669,7 @@ func NewGameState() *GameState {
 	}
 
 	return &GameState{
+		major_version:    PROTOCOL_VERSION,
 		playerTurn:       WHITE_PLAYER,
 		table:            table,
 		outTable:         []Piece{},
@@ -742,10 +746,11 @@ func FromSerialized(serializedData []byte) (*GameState, error) {
 	// used to recover moves
 	historyMovement := [3]byte{}
 	idx := 0
-
+	major_version := 0
 	for i, b := range serializedData {
 		if i == 0 {
-			if b&4 == 4 {
+			major_version = int(b >> 3)
+			if b&4 != 0 {
 				lastMoveIsAPJump = true
 				b &= 3
 			}
@@ -795,6 +800,7 @@ func FromSerialized(serializedData []byte) (*GameState, error) {
 		}
 	}
 	return &GameState{
+		major_version:    major_version,
 		playerTurn:       playerTurn,
 		table:            table,
 		outTable:         outPieces,
