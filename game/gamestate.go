@@ -750,11 +750,8 @@ func FromSerialized(serializedData []byte) (*GameState, error) {
 	for i, b := range serializedData {
 		if i == 0 {
 			major_version = int(b >> 3)
-			if b&4 != 0 {
-				lastMoveIsAPJump = true
-				b &= 3
-			}
-			playerTurn = PLAYER(b)
+			lastMoveIsAPJump = b&4 != 0
+			playerTurn = PLAYER(b & 3)
 			continue
 		}
 		if i == 1 {
@@ -845,11 +842,11 @@ func (gs *GameState) Serialize() ([]byte, error) {
 	for _, p := range gs.table {
 		pieceBytes = append(pieceBytes, pieceToByte(p))
 	}
-	encodedPlayerTurn := byte(gs.playerTurn)
+	header := byte(gs.major_version<<3) | byte(gs.playerTurn)
 	if gs.lastMoveIsAPJump {
-		encodedPlayerTurn |= 4
+		header |= 4
 	}
-	returnBytes = append(returnBytes, encodedPlayerTurn)
+	returnBytes = append(returnBytes, header)
 	returnBytes = append(returnBytes, byte(gs.checkedPlayer))
 	returnBytes = append(returnBytes, byte(gs.gameStatus))
 	returnBytes = append(returnBytes, gs.castleRights.Serialize())
