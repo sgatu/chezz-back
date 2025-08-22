@@ -117,6 +117,7 @@ func (ph *PlayHandler) Play(c *gin.Context) {
 					// fmt.Println(err)
 					continue
 				}
+				fmt.Println("lastMessage.OpCode = ", lastMessage.OpCode)
 				liveGameState.ExecuteMove(services.MoveMessage{Move: string(lastMessage.Payload), ErrorsChannel: errorCh, Who: playerId})
 			case move := <-observeChan:
 				mateStatusStr := ""
