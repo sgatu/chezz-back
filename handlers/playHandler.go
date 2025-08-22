@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
-	"sync/atomic"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -82,7 +81,6 @@ func (ph *PlayHandler) Play(c *gin.Context) {
 		defer close(errorCh)
 		defer conn.Close()
 		defer liveGameState.RemoveObserver(observeChan)
-		aux := atomic.Uint32{}
 		relation := getRelation(gameEntity)
 		initMessage, err := json.Marshal(struct {
 			Type     string `json:"type"`
@@ -110,7 +108,7 @@ func (ph *PlayHandler) Play(c *gin.Context) {
 				if lastMessage != nil && lastMessage.OpCode == ws.OpPong {
 					continue
 				}
-				// ping every 3 seconds
+				// ping every 5 seconds
 				if timePassed > 5 {
 					timePassed = 0
 					conn.Write(ws.CompiledPing)
@@ -120,10 +118,6 @@ func (ph *PlayHandler) Play(c *gin.Context) {
 					continue
 				}
 				liveGameState.ExecuteMove(services.MoveMessage{Move: string(lastMessage.Payload), ErrorsChannel: errorCh, Who: playerId})
-				newVal := aux.Add(1)
-				if newVal == 100 {
-					return
-				}
 			case move := <-observeChan:
 				mateStatusStr := ""
 				if move.MateStatus == game.STATUS_CHECKMATE {

@@ -100,6 +100,7 @@ func (lgs *LiveGameState) ExecuteMove(move MoveMessage) {
 func (lgs *LiveGameState) startAwaitingMoves() {
 	go func() {
 		for move := range lgs.chCommandsChannel {
+			fmt.Println("Procesing move: ", move.Who, move.Move)
 			result, err := lgs.game.UpdateGame(move.Who, move.Move)
 			if err == nil {
 				lgs.notifyMoveObservers(result)
