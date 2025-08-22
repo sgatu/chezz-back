@@ -99,7 +99,7 @@ func (ph *PlayHandler) Play(c *gin.Context) {
 				if deltaLastMessage > 30 {
 					fmt.Println("No message from client in 30 sec, closing connection.")
 					conn.Write(ws.CompiledCloseNormalClosure)
-					break
+					return
 				}
 				message, err := wsutil.ReadClientMessage(conn, nil)
 				var lastMessage *wsutil.Message = nil
