@@ -107,6 +107,7 @@ func (ph *PlayHandler) Play(c *gin.Context) {
 					lastMessage = &message[len(message)-1]
 				}
 				if err == nil && lastMessage != nil && lastMessage.OpCode == ws.OpClose {
+					conn.Write(ws.CompiledClose)
 					// client closed connection
 					return
 				}
