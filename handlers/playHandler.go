@@ -90,12 +90,17 @@ func (ph *PlayHandler) Play(c *gin.Context) {
 			return
 		}
 		wsutil.WriteServerMessage(conn, ws.OpText, []byte(initMessage))
-		timePassed := 0
+		lastMessageDate := time.Now().UTC().Unix()
 		for {
 			select {
 			case <-ticker.C:
 				conn.SetReadDeadline(time.Now().Add(time.Millisecond * 500))
-				timePassed++
+				deltaLastMessage := time.Now().UTC().Unix() - lastMessageDate
+				if deltaLastMessage > 30 {
+					fmt.Println("No message from client in 30 sec, closing connection.")
+					conn.Write(ws.CompiledCloseNormalClosure)
+					break
+				}
 				message, err := wsutil.ReadClientMessage(conn, nil)
 				var lastMessage *wsutil.Message = nil
 				if len(message) > 0 {
@@ -105,19 +110,26 @@ func (ph *PlayHandler) Play(c *gin.Context) {
 					// client closed connection
 					return
 				}
+				if err == nil && lastMessage != nil && lastMessage.OpCode == ws.OpPing {
+					lastMessageDate = time.Now().UTC().Unix()
+					fmt.Println("got ping, sending pong", lastMessageDate)
+					conn.Write(ws.CompiledPong)
+					continue
+				}
 				if lastMessage != nil && lastMessage.OpCode == ws.OpPong {
+					lastMessageDate = time.Now().UTC().Unix()
+					fmt.Println("got pong", lastMessageDate)
+
 					continue
 				}
 				// ping every 5 seconds
-				if timePassed > 5 {
-					timePassed = 0
+				if deltaLastMessage > 5 {
 					conn.Write(ws.CompiledPing)
 				}
 				if err != nil {
 					// fmt.Println(err)
 					continue
 				}
-				fmt.Println("lastMessage.OpCode = ", lastMessage.OpCode)
 				liveGameState.ExecuteMove(services.MoveMessage{Move: string(lastMessage.Payload), ErrorsChannel: errorCh, Who: playerId})
 			case move := <-observeChan:
 				mateStatusStr := ""
