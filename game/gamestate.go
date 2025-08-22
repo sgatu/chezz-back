@@ -485,7 +485,7 @@ func (gs *GameState) processPawnMovement(action *Action) error {
 		}
 	}
 
-	if (action.posEnd < 8 && action.who == WHITE_PLAYER) || (action.posEnd > 55 && action.who == BLACK_PLAYER) {
+	if (action.posEnd > 55 && action.who == WHITE_PLAYER) || (action.posEnd < 8 && action.who == BLACK_PLAYER) {
 		if action.promotion == UNKNOWN_PIECE {
 			return &errors.InvalidMoveError{
 				Message: "move requires promotion",
@@ -520,7 +520,7 @@ func (gs *GameState) isCastlingMovement(action *Action) (bool, int, int) {
 		!gs.table[action.posStart].HasBeenMoved
 
 	if isCastling {
-		rookEnd := action.posStart + 1*direction
+		rookEnd := action.posStart + direction
 		rookStart := action.posStart + (int(absdist)+1)*direction
 		if direction < 0 {
 			rookStart -= 1
@@ -945,7 +945,7 @@ func (gs *GameState) UpdateGameState(uciAction string) (*MoveResult, error) {
 			ErrCode: "INVALID_PIECE_SELECTED",
 		}
 	}
-	// check if the end poisition is not already used by another piece
+	// check if the end position is not already used by another piece
 	if gs.table[action.posEnd] != nil &&
 		gs.table[action.posEnd].Player == action.who {
 		return nil, &errors.InvalidMoveError{
