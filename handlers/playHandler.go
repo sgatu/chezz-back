@@ -97,7 +97,6 @@ func (ph *PlayHandler) Play(c *gin.Context) {
 				conn.SetReadDeadline(time.Now().Add(time.Millisecond * 500))
 				deltaLastMessage := time.Now().UTC().Unix() - lastMessageDate
 				if deltaLastMessage > 30 {
-					fmt.Println("No message from client in 30 sec, closing connection.")
 					conn.Write(ws.CompiledCloseNormalClosure)
 					return
 				}
@@ -113,14 +112,11 @@ func (ph *PlayHandler) Play(c *gin.Context) {
 				}
 				if err == nil && lastMessage != nil && lastMessage.OpCode == ws.OpPing {
 					lastMessageDate = time.Now().UTC().Unix()
-					fmt.Println("got ping, sending pong", lastMessageDate)
 					conn.Write(ws.CompiledPong)
 					continue
 				}
 				if lastMessage != nil && lastMessage.OpCode == ws.OpPong {
 					lastMessageDate = time.Now().UTC().Unix()
-					fmt.Println("got pong", lastMessageDate)
-
 					continue
 				}
 				// ping every 5 seconds
@@ -152,9 +148,6 @@ func (ph *PlayHandler) Play(c *gin.Context) {
 					return
 				}
 				err = wsutil.WriteServerMessage(conn, ws.OpText, []byte(outputMessage))
-				if err == nil {
-					fmt.Printf("Got movement, sent to player %+v\n", move)
-				}
 			case error := <-errorCh:
 				if ferr, ok := error.(*errors.InvalidMoveError); ok {
 					outputMessage, err := json.Marshal(struct {
