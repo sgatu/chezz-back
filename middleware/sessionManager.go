@@ -2,8 +2,8 @@ package middleware
 
 import (
 	"fmt"
-	"net"
 	"net/http"
+	"sync"
 
 	"github.com/bwmarrin/snowflake"
 	"github.com/gin-gonic/gin"
@@ -60,6 +60,30 @@ func getSession(c *gin.Context, sm *SessionManager) *models.SessionStore {
 	return session
 }
 
+type beforeWriteWriter struct {
+	gin.ResponseWriter
+	once        sync.Once
+	beforeWrite func()
+}
+
+func (w *beforeWriteWriter) WriteHeader(code int) {
+	w.once.Do(func() {
+		if w.beforeWrite != nil {
+			w.beforeWrite()
+		}
+	})
+	w.ResponseWriter.WriteHeader(code)
+}
+
+func (w *beforeWriteWriter) Write(b []byte) (int, error) {
+	w.once.Do(func() {
+		if w.beforeWrite != nil {
+			w.beforeWrite()
+		}
+	})
+	return w.ResponseWriter.Write(b)
+}
+
 // func manage session to use as gin middleware
 func (sm *SessionManager) ManageSession() gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -67,18 +91,26 @@ func (sm *SessionManager) ManageSession() gin.HandlerFunc {
 		sessionID := session.SessionId
 		c.Set("session", session)
 		c.Set("session_mgr", sm)
-		c.Next()
 		if c.FullPath() == "" || c.Writer.Status() == http.StatusNotFound {
 			fmt.Println("No session for this endpoint", c.FullPath())
+			c.Next()
 			return
 		}
-		host := c.Request.Host
-		if h, _, err := net.SplitHostPort(host); err == nil {
-			host = h
+		bw := &beforeWriteWriter{ResponseWriter: c.Writer}
+		bw.beforeWrite = func() {
+			status := bw.Status()
+			if status == 0 {
+				status = http.StatusOK
+			}
+			if status >= 300 {
+				return
+			}
+			fmt.Println("Setting cookie for", c.FullPath())
+			isSecure := c.Request.Header.Get("X-Forwarded-Proto") == "https"
+			http.SetCookie(c.Writer, &http.Cookie{Name: "session_id", Value: sessionID, Path: "/", Domain: "", MaxAge: 3600 * 24 * 30, Secure: isSecure, HttpOnly: false, SameSite: http.SameSiteLaxMode})
+			sm.SessionRepository.SaveSession(session)
 		}
-		fmt.Println("Setting cookie for", c.FullPath())
-		isSecure := c.Request.Header.Get("X-Forwarded-Proto") == "https"
-		c.SetCookie("session_id", sessionID, 3600*24*30, "/", host, isSecure, false)
-		sm.SessionRepository.SaveSession(session)
+		c.Writer = bw
+		c.Next()
 	}
 }
