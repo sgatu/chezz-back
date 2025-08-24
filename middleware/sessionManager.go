@@ -69,14 +69,15 @@ func (sm *SessionManager) ManageSession() gin.HandlerFunc {
 		c.Set("session_mgr", sm)
 		c.Next()
 		if c.FullPath() == "" || c.Writer.Status() == http.StatusNotFound {
+			fmt.Println("No session for this endpoint", c.FullPath())
 			return
 		}
 		host := c.Request.Host
 		if h, _, err := net.SplitHostPort(host); err == nil {
 			host = h
 		}
+		fmt.Println("Setting cookie for", c.FullPath())
 		c.SetCookie("session_id", sessionID, 3600*24*30, "/", host, false, false)
-
 		sm.SessionRepository.SaveSession(session)
 	}
 }
