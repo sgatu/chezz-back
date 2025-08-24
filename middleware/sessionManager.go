@@ -3,6 +3,7 @@ package middleware
 import (
 	"fmt"
 	"net"
+	"net/http"
 
 	"github.com/bwmarrin/snowflake"
 	"github.com/gin-gonic/gin"
@@ -64,10 +65,18 @@ func (sm *SessionManager) ManageSession() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		session := getSession(c, sm)
 		sessionID := session.SessionId
-		host, _, _ := net.SplitHostPort(c.Request.Host)
-		c.SetCookie("session_id", sessionID, 3600*24*30, "/", host, false, false)
 		c.Set("session", session)
 		c.Set("session_mgr", sm)
+		c.Next()
+		if c.FullPath() == "" || c.Writer.Status() == http.StatusNotFound {
+			return
+		}
+		host := c.Request.Host
+		if h, _, err := net.SplitHostPort(host); err == nil {
+			host = h
+		}
+		c.SetCookie("session_id", sessionID, 3600*24*30, "/", host, false, false)
+
 		sm.SessionRepository.SaveSession(session)
 	}
 }
