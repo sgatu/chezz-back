@@ -77,7 +77,8 @@ func (sm *SessionManager) ManageSession() gin.HandlerFunc {
 			host = h
 		}
 		fmt.Println("Setting cookie for", c.FullPath())
-		c.SetCookie("session_id", sessionID, 3600*24*30, "/", host, false, false)
+		isSecure := c.Request.Header.Get("X-Forwarded-Proto") == "https"
+		c.SetCookie("session_id", sessionID, 3600*24*30, "/", host, isSecure, false)
 		sm.SessionRepository.SaveSession(session)
 	}
 }
